@@ -1,0 +1,13 @@
+name: larimar
+version: 0.1.0
+
+authors:
+  - Margret Riegert <margret@eowyn.net>
+
+targets:
+  larimar:
+    main: src/larimar.cr
+
+crystal: '>= 1.13.1'
+
+license: MIT
