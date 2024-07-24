@@ -108,6 +108,7 @@ class Larimar::Controller
         document.update_contents(changes)
       end
     when LSProtocol::TextDocumentDidSaveNotification
+    when LSProtocol::WorkspaceDidChangeWatchedFilesNotification
     else
       Log.error { "Unhandled notification message #{message.class.to_s.split("::").last}" }
     end

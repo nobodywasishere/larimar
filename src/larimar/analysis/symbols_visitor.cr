@@ -97,20 +97,35 @@ class Larimar::DocumentSymbolsVisitor < Crystal::Visitor
       @parent_macro_call = node
       expanded.accept(self)
       @parent_macro_call = nil
+    elsif ["getter", "setter", "property"].includes?(node.name.rchop('?').rchop('!'))
+      node.args.each &.accept(self)
+    elsif node.name == "record"
+      type, *params = node.args
+
+      class_body = Crystal::Expressions.from(params)
+      class_def = Crystal::ClassDef.new(type.as(Crystal::Path), class_body, struct: true).at(node)
+      class_def.accept(self)
     end
 
     false
   end
 
   def visit(node : Crystal::InstanceVar)
-    symbol = node_to_symbol(node, :field)
+    symbol = node_to_symbol(node, :field, detail: format_var(node))
     @symbols << symbol
 
     false
   end
 
   def visit(node : Crystal::ClassVar)
-    symbol = node_to_symbol(node, :field)
+    symbol = node_to_symbol(node, :field, detail: format_var(node))
+    @symbols << symbol
+
+    false
+  end
+
+  def visit(node : Crystal::TypeDeclaration)
+    symbol = node_to_symbol(node, :field, format_var(node))
     @symbols << symbol
 
     false
@@ -142,8 +157,8 @@ class Larimar::DocumentSymbolsVisitor < Crystal::Visitor
   end
 
   def visit(node : Crystal::Assign)
-    if node.target.to_s[0].uppercase?
-      symbol = node_to_symbol(node, :constant, detail: node.target.to_s)
+    if node.target.is_a?(Crystal::Path)
+      symbol = node_to_symbol(node, :constant, detail: format_var(node.target))
       @symbols << symbol
     end
 
@@ -153,11 +168,11 @@ class Larimar::DocumentSymbolsVisitor < Crystal::Visitor
   def visit(node : Crystal::Var)
     case @parent_symbol.try(&.kind)
     when Nil
-      symbol = node_to_symbol(node, :variable)
+      symbol = node_to_symbol(node, :variable, detail: format_var(node))
     when .class?, .module?
-      symbol = node_to_symbol(node, :field)
+      symbol = node_to_symbol(node, :field, detail: format_var(node))
     else
-      symbol = node_to_symbol(node, :variable)
+      symbol = node_to_symbol(node, :variable, detail: format_var(node))
     end
 
     @symbols << symbol
@@ -250,6 +265,31 @@ class Larimar::DocumentSymbolsVisitor < Crystal::Visitor
       if node.responds_to?(:free_vars) && (free_vars = node.free_vars)
         str << " forall "
         free_vars.join(str, ", ")
+      end
+    end
+  end
+
+  def format_var(node) : String
+    String.build do |str|
+      case node
+      when Crystal::TypeDeclaration
+        if (var = node.var).responds_to?(:name)
+          str << var.name
+        else
+          str << var
+        end
+
+        str << " : " << node.declared_type
+      else
+        if node.responds_to?(:name)
+          str << node.name
+        else
+          str << node.to_s
+        end
+
+        if (type = node.type?)
+          str << " : " << type
+        end
       end
     end
   end
