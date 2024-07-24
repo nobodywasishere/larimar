@@ -1,4 +1,6 @@
 class Larimar::Controller
+  Log = ::Larimar::Log.for(self)
+
   def on_init(capabilites : LSProtocol::ClientCapabilities) : LSProtocol::ServerCapabilities?
   end
 

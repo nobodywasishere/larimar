@@ -3,7 +3,7 @@ require "json"
 require "uri"
 require "lsprotocol"
 
-require "./larimar/log_backend"
+require "./larimar/log"
 require "./larimar/server"
 require "./larimar/controller"
 

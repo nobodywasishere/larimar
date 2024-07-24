@@ -1,4 +1,6 @@
 class Larimar::Server
+  Log = ::Larimar::Log.for(self)
+
   DEFAULT_CONTENT_TYPE        = "application/vscode-jsonrpc; charset=utf-8"
   DEFAULT_SERVER_CAPABILITIES = LSProtocol::ServerCapabilities.new(
     text_document_sync: LSProtocol::TextDocumentSyncKind::Incremental,
@@ -21,7 +23,6 @@ class Larimar::Server
     @server_capabilities : LSProtocol::ServerCapabilities = DEFAULT_SERVER_CAPABILITIES
   )
     @output_lock = Mutex.new(:reentrant)
-    Larimar::Log.backend = Larimar::LogBackend.new(self)
   end
 
   def start(controller : Larimar::Controller)
@@ -68,7 +69,7 @@ class Larimar::Server
   def server_loop(controller : Larimar::Controller)
     loop do
       message = recv_msg
-      Log.debug { "Received message #{message.class.to_s.split("::").last}" }
+      Log.info &.emit("Received message #{message.class}\n  #{message.to_json}")
 
       case message
       when LSProtocol::ExitNotification

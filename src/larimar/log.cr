@@ -1,6 +1,6 @@
 class Larimar::LogBackend < ::Log::IOBackend
-  def initialize(@server : Larimar::Server)
-    super(server.output)
+  def initialize(@server : Larimar::Server, formatter)
+    super(server.output, formatter: formatter)
   end
 
   def write(entry : ::Log::Entry)
@@ -17,8 +17,16 @@ class Larimar::LogBackend < ::Log::IOBackend
                      LSProtocol::MessageType::Log
                    end
     log_message = LSProtocol::WindowLogMessageNotification.new(
-      params: LSProtocol::LogMessageParams.new(type: message_type, message: entry.message),
+      params: LSProtocol::LogMessageParams.new(type: message_type, message: format(entry)),
     )
     @server.send_msg(log_message, log: false)
   end
+
+  def format(entry : ::Log::Entry) : String
+    io = IO::Memory.new
+    @formatter.format(entry, io)
+    io.to_s
+  end
 end
+
+::Log.define_formatter Larimar::LogFormatter, "#{source}: #{message}"
