@@ -102,6 +102,10 @@ class Larimar::DocumentSymbolsVisitor < Crystal::Visitor
     elsif node.name == "record"
       type, *params = node.args
 
+      if (block_body = node.block.try(&.body))
+        params.push(block_body)
+      end
+
       class_body = Crystal::Expressions.from(params)
       class_def = Crystal::ClassDef.new(type.as(Crystal::Path), class_body, struct: true).at(node)
       class_def.accept(self)
