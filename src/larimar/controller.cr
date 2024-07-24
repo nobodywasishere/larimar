@@ -11,123 +11,131 @@ class Larimar::Controller
   def when_ready
   end
 
-  def on_request(message)
+  # Requests
+
+  def on_request(message : LSProtocol::Request) : Nil
+    Log.error { "Unhandled request message #{message.class.to_s.split("::").last}" }
+  end
+
+  def on_request(message : LSProtocol::TextDocumentFormattingRequest)
     @pending_requests << message.id
 
-    case message
-    when LSProtocol::TextDocumentFormattingRequest
-      params = message.params
-      document_uri = URI.parse(params.text_document.uri)
+    params = message.params
+    document_uri = URI.parse(params.text_document.uri)
 
-      collection = @documents[document_uri]?
-      return unless collection
-      document, mutex = collection
+    collection = @documents[document_uri]?
+    return unless collection
+    document, mutex = collection
 
-      mutex.synchronize do
-        GC.disable
-        document.contents = Crystal.format(document.contents)
-        GC.enable
-      end
-
-      return LSProtocol::TextDocumentFormattingResponse.new(
-        id: message.id,
-        result: [
-          LSProtocol::TextEdit.new(
-            range: LSProtocol::Range.new(
-              start: LSProtocol::Position.new(line: 0, character: 0),
-              end: LSProtocol::Position.new(line: document.line_count + 1, character: 0_u32)
-            ),
-            new_text: document.contents
-          ),
-        ]
-      )
-    when LSProtocol::TextDocumentDocumentSymbolRequest
-      params = message.params
-      document_uri = URI.parse(params.text_document.uri)
-      symbols = [] of LSProtocol::SymbolInformation
-
-      collection = @documents[document_uri]?
-      return unless collection
-      document, mutex = collection
-
-      mutex.synchronize do
-        GC.disable
-        parser = Crystal::Parser.new(document.contents)
-        parser.filename = document_uri.path
-        parser.wants_doc = false
-
-        visitor = DocumentSymbolsVisitor.new(params.text_document.uri)
-        parser.parse.accept(visitor)
-
-        symbols = visitor.symbols
-        GC.enable
-      end
-
-      return LSProtocol::TextDocumentDocumentSymbolResponse.new(
-        id: message.id,
-        result: symbols
-      )
-    else
-      Log.error { "Unhandled request message #{message.class.to_s.split("::").last}" }
+    mutex.synchronize do
+      GC.disable
+      document.contents = Crystal.format(document.contents)
+      GC.enable
     end
 
-    nil
+    LSProtocol::TextDocumentFormattingResponse.new(
+      id: message.id,
+      result: [
+        LSProtocol::TextEdit.new(
+          range: LSProtocol::Range.new(
+            start: LSProtocol::Position.new(line: 0, character: 0),
+            end: LSProtocol::Position.new(line: document.line_count + 1, character: 0_u32)
+          ),
+          new_text: document.contents
+        ),
+      ]
+    )
   ensure
     @pending_requests.delete(message.id)
   end
 
-  def on_notification(message)
-    case message
-    when LSProtocol::TextDocumentDidOpenNotification
-      params = message.params
-      document_uri = URI.parse(params.text_document.uri)
+  def on_request(message : LSProtocol::TextDocumentDocumentSymbolRequest)
+    @pending_requests << message.id
 
-      @documents[document_uri] = {
-        TextDocument.new(
-          document_uri,
-          params.text_document.text
-        ),
-        Mutex.new,
-      }
-    when LSProtocol::TextDocumentDidCloseNotification
-      params = message.params
-      document_uri = URI.parse(params.text_document.uri)
+    params = message.params
+    document_uri = URI.parse(params.text_document.uri)
+    symbols = [] of LSProtocol::SymbolInformation
 
-      contents = @documents[document_uri]?
-      return unless contents
-      document, mutex = contents
+    collection = @documents[document_uri]?
+    return unless collection
+    document, mutex = collection
 
-      mutex.synchronize do
-        @documents.delete(document_uri)
-      end
-    when LSProtocol::TextDocumentDidChangeNotification
-      params = message.params
-      document_uri = URI.parse(params.text_document.uri)
-      changes = params.content_changes
+    mutex.synchronize do
+      GC.disable
+      parser = Crystal::Parser.new(document.contents)
+      parser.filename = document_uri.path
+      parser.wants_doc = false
 
-      contents = @documents[document_uri]?
-      return unless contents
-      document, mutex = contents
+      visitor = DocumentSymbolsVisitor.new(params.text_document.uri)
+      parser.parse.accept(visitor)
 
-      mutex.synchronize do
-        document.update_contents(changes)
-      end
-    when LSProtocol::TextDocumentDidSaveNotification
-    when LSProtocol::WorkspaceDidChangeWatchedFilesNotification
-    else
-      Log.error { "Unhandled notification message #{message.class.to_s.split("::").last}" }
+      symbols = visitor.symbols
+      GC.enable
     end
 
-    nil
+    LSProtocol::TextDocumentDocumentSymbolResponse.new(
+      id: message.id,
+      result: symbols
+    )
+  ensure
+    @pending_requests.delete(message.id)
   end
 
-  def on_response(message)
-    case message
-    when Nil
-    else
-      Log.error { "Unhandled response message #{message.class.to_s.split("::").last}" }
-    end
+  # Notifications
 
-    nil
+  def on_notification(message : LSProtocol::Notification) : Nil
+    Log.error { "Unhandled notification message #{message.class.to_s.split("::").last}" }
+  end
+
+  def on_notification(message : LSProtocol::TextDocumentDidOpenNotification) : Nil
+    params = message.params
+    document_uri = URI.parse(params.text_document.uri)
+
+    @documents[document_uri] = {
+      TextDocument.new(
+        document_uri,
+        params.text_document.text
+      ),
+      Mutex.new,
+    }
+  end
+
+  def on_notification(message : LSProtocol::TextDocumentDidCloseNotification) : Nil
+    params = message.params
+    document_uri = URI.parse(params.text_document.uri)
+
+    contents = @documents[document_uri]?
+    return unless contents
+    document, mutex = contents
+
+    mutex.synchronize do
+      @documents.delete(document_uri)
+    end
+  end
+
+  def on_notification(message : LSProtocol::TextDocumentDidChangeNotification) : Nil
+    params = message.params
+    document_uri = URI.parse(params.text_document.uri)
+    changes = params.content_changes
+
+    contents = @documents[document_uri]?
+    return unless contents
+    document, mutex = contents
+
+    mutex.synchronize do
+      document.update_contents(changes)
+    end
+  end
+
+  def on_notification(message : LSProtocol::TextDocumentDidSaveNotification) : Nil
+  end
+
+  def on_notification(message : LSProtocol::WorkspaceDidChangeWatchedFilesNotification) : Nil
+  end
+
+  # Responses
+
+  def on_response(message : LSProtocol::Response) : Nil
+    Log.error { "Unhandled response message #{message.class.to_s.split("::").last}" }
   end
 end
