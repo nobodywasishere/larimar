@@ -49,15 +49,23 @@ class Larimar::Server
         init_result : LSProtocol::InitializeResult = controller.on_init(init_msg.params.capabilities) ||
           LSProtocol::InitializeResult.new(@server_capabilities)
 
-        reply(init_msg, result: init_result)
+        response = LSProtocol::InitializeResponse.new(
+          id: init_msg.id,
+          result: init_result
+        )
 
+        send_msg(response)
         break
       when LSProtocol::Request
-        # TODO: send error
-        reply(init_msg, error: LSProtocol::ResponseError.new(
-          code: LSProtocol::ErrorCodes::ServerNotInitialized.value,
-          message: "Expecting an initialize request but received #{init_msg.method}."
-        ))
+        error_msg = LSProtocol::ResponseErrorMessage.new(
+          id: init_msg.id,
+          error: LSProtocol::ResponseError.new(
+            code: LSProtocol::ErrorCodes::ServerNotInitialized.value,
+            message: "Expecting an initialize request but received #{init_msg.method}."
+          )
+        )
+
+        send_msg(error_msg)
       end
     rescue IO::Error
       exit(1)
@@ -69,27 +77,34 @@ class Larimar::Server
   def server_loop(controller : Larimar::Controller)
     loop do
       message = recv_msg
+
       Log.info &.emit("Received message #{message.class}\n  #{message.to_json}")
+
+      response : LSProtocol::Message?
+      nil_response = LSProtocol::ResponseMessage.new(id: message.id || "null", result: nil)
 
       case message
       when LSProtocol::ExitNotification
         exit(0)
       when LSProtocol::ShutdownRequest
-        reply(request: message, result: nil)
+        # Not using ShutdownResponse as it doesn't include the result
+        response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
       when LSProtocol::Request
-        result = controller.on_request(message)
-        reply(request: message, result: result)
+        response = controller.on_request(message)
       when LSProtocol::Notification
-        result = controller.on_notification(message)
-        reply(request: message, result: result)
+        response = controller.on_notification(message)
       when LSProtocol::Response
-        result = controller.on_response(message)
-        reply(request: message, result: result)
+        response = controller.on_response(message)
       end
+
+      send_msg(response || nil_response)
     rescue e
       Log.error(exception: e) { e }
+
       if message.is_a? LSProtocol::Request
-        reply(request: message, result: nil)
+        response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
+
+        send_msg(response)
       end
     end
   end
@@ -137,15 +152,5 @@ class Larimar::Server
     content = String.new(content_bytes)
 
     LSProtocol.parse_message(content)
-  end
-
-  def reply(request : LSProtocol::Message, result = nil, error : LSProtocol::ResponseError? = nil)
-    if error
-      response_msg = LSProtocol::ResponseErrorMessage.new(id: request.id || "null", error: error)
-    else
-      response_msg = LSProtocol::ResponseMessage.new(id: request.id || "null", result: JSON.parse(result.to_json))
-    end
-
-    send_msg(response_msg)
   end
 end

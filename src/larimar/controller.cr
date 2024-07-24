@@ -12,9 +12,10 @@ class Larimar::Controller
   end
 
   def on_request(message)
+    @pending_requests << message.id
+
     case message
     when LSProtocol::TextDocumentFormattingRequest
-      @pending_requests << message.id
       params = message.params
       document_uri = URI.parse(params.text_document.uri)
 
@@ -26,8 +27,11 @@ class Larimar::Controller
         GC.disable
         document.contents = Crystal.format(document.contents)
         GC.enable
+      end
 
-        response = [
+      return LSProtocol::TextDocumentFormattingResponse.new(
+        id: message.id,
+        result: [
           LSProtocol::TextEdit.new(
             range: LSProtocol::Range.new(
               start: LSProtocol::Position.new(line: 0, character: 0),
@@ -36,16 +40,14 @@ class Larimar::Controller
             new_text: document.contents
           ),
         ]
-
-        return response
-      end
+      )
     when LSProtocol::TextDocumentDocumentSymbolRequest
       params = message.params
       document_uri = URI.parse(params.text_document.uri)
       symbols = [] of LSProtocol::SymbolInformation
 
       collection = @documents[document_uri]?
-      return symbols unless collection
+      return unless collection
       document, mutex = collection
 
       mutex.synchronize do
@@ -61,7 +63,10 @@ class Larimar::Controller
         GC.enable
       end
 
-      return symbols
+      return LSProtocol::TextDocumentDocumentSymbolResponse.new(
+        id: message.id,
+        result: symbols
+      )
     else
       Log.error { "Unhandled request message #{message.class.to_s.split("::").last}" }
     end

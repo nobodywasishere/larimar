@@ -2,5 +2,5 @@ version: 2.0
 shards:
   lsprotocol:
     git: https://github.com/nobodywasishere/lsprotocol-crystal.git
-    version: 0.1.0+git.commit.42fb723eddc45d03e113aa5670a7c69597bce9a0
+    version: 0.1.0+git.commit.355686a71dc1ebef102d8c7ba26da90f0cd12ffe
 
