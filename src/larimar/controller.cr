@@ -31,6 +31,10 @@ class Larimar::Controller
       GC.disable
       document.contents = Crystal.format(document.contents)
       GC.enable
+    rescue e
+      Log.error(exception: e) { "Error when formatting:\n#{e}" }
+
+      return
     end
 
     LSProtocol::TextDocumentFormattingResponse.new(
@@ -69,8 +73,12 @@ class Larimar::Controller
       visitor = DocumentSymbolsVisitor.new(params.text_document.uri)
       parser.parse.accept(visitor)
 
-      symbols = visitor.symbols
+      document.cached_symbols = symbols = visitor.symbols
       GC.enable
+    rescue e
+      Log.error(exception: e) { "Error when parsing:\n#{e}" }
+
+      symbols = document.cached_symbols || symbols
     end
 
     LSProtocol::TextDocumentDocumentSymbolResponse.new(

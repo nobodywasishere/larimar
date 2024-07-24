@@ -1,5 +1,7 @@
 class Larimar::TextDocument
   getter uri : URI
+  property cached_symbols : Array(LSProtocol::SymbolInformation)?
+
   @inner_contents : Array(String) = Array(String).new
 
   def initialize(@uri : URI, contents : String)
