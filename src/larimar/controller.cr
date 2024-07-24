@@ -39,6 +39,29 @@ class Larimar::Controller
 
         return response
       end
+    when LSProtocol::TextDocumentDocumentSymbolRequest
+      params = message.params
+      document_uri = URI.parse(params.text_document.uri)
+      symbols = [] of LSProtocol::SymbolInformation
+
+      collection = @documents[document_uri]?
+      return symbols unless collection
+      document, mutex = collection
+
+      mutex.synchronize do
+        GC.disable
+        parser = Crystal::Parser.new(document.contents)
+        parser.filename = document_uri.path
+        parser.wants_doc = false
+
+        visitor = DocumentSymbolsVisitor.new(params.text_document.uri)
+        parser.parse.accept(visitor)
+
+        symbols = visitor.symbols
+        GC.enable
+      end
+
+      return symbols
     else
       Log.error { "Unhandled request message #{message.class.to_s.split("::").last}" }
     end

@@ -10,6 +10,8 @@ require "./larimar/compiler"
 require "./larimar/server"
 require "./larimar/controller"
 
+require "./larimar/analysis/symbols_visitor"
+
 module Larimar
   VERSION = "0.1.0"
 

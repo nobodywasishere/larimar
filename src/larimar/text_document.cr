@@ -32,9 +32,6 @@ class Larimar::TextDocument
     suffix = @inner_contents[range.end.line]?.try(&.[range.end.character..]?) ||
              @inner_contents[range.end.line]? || ""
 
-    Log.info { "Prefix: #{prefix}" }
-    Log.info { "Suffix: #{suffix}" }
-
     change_lines = String.build do |b|
       b << prefix
       b << change.text

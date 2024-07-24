@@ -5,13 +5,13 @@ class Larimar::Server
   DEFAULT_SERVER_CAPABILITIES = LSProtocol::ServerCapabilities.new(
     text_document_sync: LSProtocol::TextDocumentSyncKind::Full,
     document_formatting_provider: true,
+    document_symbol_provider: true,
     # document_range_formatting_provider: true,
     # completion_provider: LSProtocol::CompletionOptions.new(
     #   trigger_characters: [".", ":", "@"]
     # ),
     # hover_provider: true,
     # definition_provider: true,
-    # document_symbol_provider: true,
     # inlay_hint_provider: true
   )
 
