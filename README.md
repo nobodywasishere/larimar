@@ -2,6 +2,8 @@
 
 TODO: Write a description here
 
+Heavily influenced by [Crystalline](https://github.com/elbywan/crystalline).
+
 ## Installation
 
 TODO: Write installation instructions here

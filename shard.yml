@@ -4,10 +4,14 @@ version: 0.1.0
 authors:
   - Margret Riegert <margret@eowyn.net>
 
+dependencies:
+  lsprotocol:
+    github: nobodywasishere/lsprotocol-crystal
+
 targets:
   larimar:
-    main: src/larimar.cr
+    main: src/cli.cr
 
-crystal: '>= 1.13.1'
+crystal: ">= 1.13.1"
 
 license: MIT

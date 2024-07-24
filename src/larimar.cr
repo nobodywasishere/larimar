@@ -1,6 +1,14 @@
-# TODO: Write documentation for `Larimar`
+require "log"
+require "json"
+require "uri"
+require "lsprotocol"
+
+require "./larimar/log_backend"
+require "./larimar/server"
+require "./larimar/controller"
+
 module Larimar
   VERSION = "0.1.0"
 
-  # TODO: Put your code here
+  Log = ::Log.for(self)
 end
