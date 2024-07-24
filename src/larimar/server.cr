@@ -3,7 +3,7 @@ class Larimar::Server
 
   DEFAULT_CONTENT_TYPE        = "application/vscode-jsonrpc; charset=utf-8"
   DEFAULT_SERVER_CAPABILITIES = LSProtocol::ServerCapabilities.new(
-    text_document_sync: LSProtocol::TextDocumentSyncKind::Incremental,
+    text_document_sync: LSProtocol::TextDocumentSyncKind::Full,
     document_formatting_provider: true,
     # document_range_formatting_provider: true,
     # completion_provider: LSProtocol::CompletionOptions.new(
@@ -79,10 +79,10 @@ class Larimar::Server
       when LSProtocol::Request
         result = controller.on_request(message)
         reply(request: message, result: result)
-      when LSProtocol::Response
+      when LSProtocol::Notification
         result = controller.on_notification(message)
         reply(request: message, result: result)
-      when LSProtocol::Notification
+      when LSProtocol::Response
         result = controller.on_response(message)
         reply(request: message, result: result)
       end
