@@ -4,6 +4,7 @@ require "uri"
 require "lsprotocol"
 
 require "./larimar/log"
+require "./larimar/workspace"
 require "./larimar/server"
 require "./larimar/controller"
 
