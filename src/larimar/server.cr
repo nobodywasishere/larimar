@@ -85,10 +85,18 @@ class Larimar::Server
 
       case message
       when LSProtocol::ExitNotification
-        exit(0)
+        exit
       when LSProtocol::ShutdownRequest
         # Not using ShutdownResponse as it doesn't include the result
         response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
+
+        # Sometimes the upstream may not send the exit notification,
+        # leading to a zombie process being leftover even if the client is closed.
+        # Shutdown after 3 seconds regardless
+        spawn do
+          sleep 3
+          exit
+        end
       when LSProtocol::Request
         response = controller.on_request(message)
       when LSProtocol::Notification

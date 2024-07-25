@@ -95,6 +95,10 @@ class Larimar::Controller
     Log.error { "Unhandled notification message #{message.class.to_s.split("::").last}" }
   end
 
+  def on_notification(message : LSProtocol::SetTraceNotification) : Nil
+    # TODO: Enable setting the log level via `message.params.value` ('off' | 'messages' | 'verbose')
+  end
+
   def on_notification(message : LSProtocol::TextDocumentDidOpenNotification) : Nil
     params = message.params
     document_uri = URI.parse(params.text_document.uri)
