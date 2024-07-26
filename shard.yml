@@ -6,7 +6,8 @@ authors:
 
 dependencies:
   lsprotocol:
-    github: nobodywasishere/lsprotocol-crystal
+    # github: nobodywasishere/lsprotocol-crystal
+    path: /Users/margret/dev/crystal/lsprotocol/packages/crystal/lsprotocol/
 
 targets:
   larimar:

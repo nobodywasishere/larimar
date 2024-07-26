@@ -78,7 +78,7 @@ class Larimar::Server
     loop do
       message = recv_msg
 
-      Log.info &.emit("Received message #{message.class}\n  #{message.to_json}")
+      Log.debug &.emit("Received message #{message.class}\n  #{message.to_json}")
 
       response : LSProtocol::Message?
       nil_response = LSProtocol::ResponseMessage.new(id: message.id || "null", result: nil)
@@ -104,6 +104,8 @@ class Larimar::Server
       when LSProtocol::Response
         response = controller.on_response(message)
       end
+
+      Log.debug &.emit("Sending message #{(response || nil_response).class}\n  #{(response || nil_response).to_json}")
 
       send_msg(response || nil_response)
     rescue e

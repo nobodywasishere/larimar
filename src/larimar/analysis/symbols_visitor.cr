@@ -4,7 +4,7 @@ class Larimar::DocumentSymbolsVisitor < Crystal::Visitor
   @parent_symbol : LSProtocol::SymbolInformation? = nil
   @parent_macro_call : Crystal::Call? = nil
 
-  def initialize(@document_uri : String)
+  def initialize(@document_uri : URI)
   end
 
   def visit(node)
@@ -208,7 +208,7 @@ class Larimar::DocumentSymbolsVisitor < Crystal::Visitor
     end_loc = node.end_location || start_loc
 
     filename = start_loc.try(&.original_filename)
-    node_uri = filename ? Path.new(filename).to_uri.to_s : @document_uri
+    node_uri = filename ? Path.new(filename).to_uri : @document_uri
 
     LSProtocol::Location.new(
       uri: node_uri,

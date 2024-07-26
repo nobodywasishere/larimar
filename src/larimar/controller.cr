@@ -21,7 +21,7 @@ class Larimar::Controller
     @pending_requests << message.id
 
     params = message.params
-    document_uri = URI.parse(params.text_document.uri)
+    document_uri = params.text_document.uri
 
     collection = @documents[document_uri]?
     return unless collection
@@ -57,7 +57,7 @@ class Larimar::Controller
     @pending_requests << message.id
 
     params = message.params
-    document_uri = URI.parse(params.text_document.uri)
+    document_uri = params.text_document.uri
     symbols = [] of LSProtocol::SymbolInformation
 
     collection = @documents[document_uri]?
@@ -101,7 +101,7 @@ class Larimar::Controller
 
   def on_notification(message : LSProtocol::TextDocumentDidOpenNotification) : Nil
     params = message.params
-    document_uri = URI.parse(params.text_document.uri)
+    document_uri = params.text_document.uri
 
     @documents[document_uri] = {
       TextDocument.new(
@@ -114,7 +114,7 @@ class Larimar::Controller
 
   def on_notification(message : LSProtocol::TextDocumentDidCloseNotification) : Nil
     params = message.params
-    document_uri = URI.parse(params.text_document.uri)
+    document_uri = params.text_document.uri
 
     contents = @documents[document_uri]?
     return unless contents
@@ -127,7 +127,7 @@ class Larimar::Controller
 
   def on_notification(message : LSProtocol::TextDocumentDidChangeNotification) : Nil
     params = message.params
-    document_uri = URI.parse(params.text_document.uri)
+    document_uri = params.text_document.uri
     changes = params.content_changes
 
     contents = @documents[document_uri]?
