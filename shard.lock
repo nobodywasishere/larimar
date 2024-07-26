@@ -1,6 +1,6 @@
 version: 2.0
 shards:
   lsprotocol:
-    path: /Users/margret/dev/crystal/lsprotocol/packages/crystal/lsprotocol/
-    version: 0.1.0
+    git: https://github.com/nobodywasishere/lsprotocol-crystal.git
+    version: 0.1.0+git.commit.420a459e6fb0a751da0df9ea69497f671a9188b9
 
