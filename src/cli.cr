@@ -6,5 +6,6 @@ backend = Larimar::LogBackend.new(server, formatter: Larimar::LogFormatter)
 ::Log.setup_from_env(backend: backend)
 
 controller = Larimar::Controller.new
+# controller = Larimar::Parser::Controller.new
 
 server.start(controller)
