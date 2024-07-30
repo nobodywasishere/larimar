@@ -1,5 +1,5 @@
 class Larimar::DocumentSymbolsVisitor < Crystal::Visitor
-  getter symbols : Array(LSProtocol::SymbolInformation) = Array(LSProtocol::SymbolInformation).new
+  getter symbols = Array(LSProtocol::SymbolInformation).new
 
   @parent_symbol : LSProtocol::SymbolInformation? = nil
   @parent_macro_call : Crystal::Call? = nil

@@ -1,28 +1,13 @@
 class Larimar::Server
   Log = ::Larimar::Log.for(self)
 
-  DEFAULT_CONTENT_TYPE        = "application/vscode-jsonrpc; charset=utf-8"
-  DEFAULT_SERVER_CAPABILITIES = LSProtocol::ServerCapabilities.new(
-    text_document_sync: LSProtocol::TextDocumentSyncKind::Full,
-    document_formatting_provider: true,
-    document_symbol_provider: true,
-    # document_range_formatting_provider: true,
-    # completion_provider: LSProtocol::CompletionOptions.new(
-    #   trigger_characters: [".", ":", "@"]
-    # ),
-    # hover_provider: true,
-    # definition_provider: true,
-    # inlay_hint_provider: true
-  )
+  DEFAULT_CONTENT_TYPE = "application/vscode-jsonrpc; charset=utf-8"
 
   getter input : IO
   getter output : IO
+  @output_lock = Mutex.new(:reentrant)
 
-  def initialize(
-    @input : IO, @output : IO,
-    @server_capabilities : LSProtocol::ServerCapabilities = DEFAULT_SERVER_CAPABILITIES
-  )
-    @output_lock = Mutex.new(:reentrant)
+  def initialize(@input : IO, @output : IO)
   end
 
   def start(controller : Larimar::Controller)
@@ -46,8 +31,7 @@ class Larimar::Server
 
       case init_msg
       when LSProtocol::InitializeRequest
-        init_result : LSProtocol::InitializeResult = controller.on_init(init_msg.params.capabilities) ||
-          LSProtocol::InitializeResult.new(@server_capabilities)
+        init_result : LSProtocol::InitializeResult = controller.on_init(init_msg.params.capabilities)
 
         response = LSProtocol::InitializeResponse.new(
           id: init_msg.id,
@@ -78,8 +62,6 @@ class Larimar::Server
     loop do
       message = recv_msg
 
-      Log.debug &.emit("Received message #{message.class}\n  #{message.to_json}")
-
       response : LSProtocol::Message?
       nil_response = LSProtocol::ResponseMessage.new(id: message.id || "null", result: nil)
 
@@ -105,8 +87,6 @@ class Larimar::Server
         response = controller.on_response(message)
       end
 
-      Log.debug &.emit("Sending message #{(response || nil_response).class}\n  #{(response || nil_response).to_json}")
-
       send_msg(response || nil_response)
     rescue e
       Log.error(exception: e) { e }
@@ -122,6 +102,8 @@ class Larimar::Server
   # Transmit methods
 
   def send_msg(message : LSProtocol::Message, log : Bool = true) : Nil
+    Log.debug &.emit("Sending message #{message.class}\n  #{message.to_json}") if log
+
     json = message.to_json
 
     @output_lock.synchronize {
@@ -161,6 +143,10 @@ class Larimar::Server
 
     content = String.new(content_bytes)
 
-    LSProtocol.parse_message(content)
+    message = LSProtocol.parse_message(content)
+
+    Log.debug &.emit("Received message #{message.class}\n  #{message.to_json}")
+
+    message
   end
 end

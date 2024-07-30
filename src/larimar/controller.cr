@@ -5,7 +5,29 @@ class Larimar::Controller
   @documents : Hash(URI, Tuple(Larimar::TextDocument, Mutex)) = Hash(URI, Tuple(Larimar::TextDocument, Mutex)).new
   @documents_lock = Mutex.new
 
-  def on_init(capabilites : LSProtocol::ClientCapabilities) : LSProtocol::ServerCapabilities?
+  def on_init(capabilites : LSProtocol::ClientCapabilities) : LSProtocol::InitializeResult
+    LSProtocol::InitializeResult.new(
+      LSProtocol::ServerCapabilities.new(
+        text_document_sync: LSProtocol::TextDocumentSyncKind::Full,
+        document_formatting_provider: true,
+        document_symbol_provider: true,
+        # semantic_tokens_provider: LSProtocol::SemanticTokensOptions.new(
+        #   legend: LSProtocol::SemanticTokensLegend.new(
+        #     token_types: LSProtocol::SemanticTokenTypes.names.map(&.downcase),
+        #     token_modifiers: LSProtocol::SemanticTokenModifiers.names.map(&.downcase),
+        #   ),
+        #   full: true,
+        #   range: false,
+        # )
+        # document_range_formatting_provider: true,
+        # completion_provider: LSProtocol::CompletionOptions.new(
+        #   trigger_characters: [".", ":", "@"]
+        # ),
+        # hover_provider: true,
+        # definition_provider: true,
+        # inlay_hint_provider: true
+      )
+    )
   end
 
   def when_ready
@@ -74,16 +96,65 @@ class Larimar::Controller
       parser.parse.accept(visitor)
 
       document.cached_symbols = symbols = visitor.symbols
-      GC.enable
     rescue e
       Log.error(exception: e) { "Error when parsing:\n#{e}" }
 
       symbols = document.cached_symbols || symbols
+    ensure
+      GC.enable
     end
 
     LSProtocol::TextDocumentDocumentSymbolResponse.new(
       id: message.id,
       result: symbols
+    )
+  ensure
+    @pending_requests.delete(message.id)
+  end
+
+  def on_request(message : LSProtocol::TextDocumentSemanticTokensFullRequest)
+    @pending_requests << message.id
+
+    params = message.params
+    document_uri = params.text_document.uri
+    tokens = [] of SemanticTokensVisitor::SemanticToken
+    diagnostics = [] of LSProtocol::Diagnostic
+
+    collection = @documents[document_uri]?
+    return unless collection
+    document, mutex = collection
+
+    mutex.synchronize do
+      GC.disable
+      parser = Crystal::Parser.new(document.contents)
+      parser.filename = document_uri.path
+      parser.wants_doc = false
+
+      visitor = SemanticTokensVisitor.new
+      parser.parse.accept(visitor)
+
+      document.cached_semantic_tokens = tokens = visitor.semantic_tokens
+      diagnostics = visitor.diagnostics
+    rescue e
+      Log.error(exception: e) { "Error when parsing semantic tokens:\n#{e}" }
+
+      tokens = document.cached_semantic_tokens || tokens
+    ensure
+      GC.enable
+    end
+
+    LSProtocol::TextDocumentPublishDiagnosticsNotification.new(
+      params: LSProtocol::PublishDiagnosticsParams.new(
+        diagnostics: diagnostics,
+        uri: document_uri
+      )
+    )
+
+    LSProtocol::TextDocumentSemanticTokensFullResponse.new(
+      id: message.id,
+      result: LSProtocol::SemanticTokens.new(
+        data: tokens.map(&.to_a).flatten
+      )
     )
   ensure
     @pending_requests.delete(message.id)

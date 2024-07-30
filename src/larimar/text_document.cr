@@ -1,6 +1,7 @@
 class Larimar::TextDocument
   getter uri : URI
   property cached_symbols : Array(LSProtocol::SymbolInformation)?
+  property cached_semantic_tokens : Array(SemanticTokensVisitor::SemanticToken)?
 
   @inner_contents : Array(String) = Array(String).new
 

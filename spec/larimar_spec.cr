@@ -5,6 +5,11 @@ class DummyController < Larimar::Controller
   end
 
   def on_init(capabilites)
+    LSProtocol::InitializeResult.new(
+      LSProtocol::ServerCapabilities.new(
+        text_document_sync: LSProtocol::TextDocumentSyncKind::Incremental
+      )
+    )
   end
 
   def when_ready
@@ -37,9 +42,7 @@ describe Larimar::Server do
   it "works" do
     input = IO::Stapled.new(*IO.pipe)
     output = IO::Stapled.new(*IO.pipe)
-    server = Larimar::Server.new(input, output, LSProtocol::ServerCapabilities.new(
-      text_document_sync: LSProtocol::TextDocumentSyncKind::Incremental
-    ))
+    server = Larimar::Server.new(input, output)
     # ::Log.setup(:debug, ::Log::IOBackend.new(STDOUT))
 
     spawn do
