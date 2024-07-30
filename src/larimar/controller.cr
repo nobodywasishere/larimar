@@ -5,6 +5,8 @@ class Larimar::Controller
   @documents : Hash(URI, Tuple(Larimar::TextDocument, Mutex)) = Hash(URI, Tuple(Larimar::TextDocument, Mutex)).new
   @documents_lock = Mutex.new
 
+  property! server : Larimar::Server
+
   def on_init(capabilites : LSProtocol::ClientCapabilities) : LSProtocol::InitializeResult
     LSProtocol::InitializeResult.new(
       LSProtocol::ServerCapabilities.new(

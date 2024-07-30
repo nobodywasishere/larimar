@@ -11,6 +11,8 @@ class Larimar::Server
   end
 
   def start(controller : Larimar::Controller)
+    controller.server = self
+
     Log.info { "Starting server..." }
     handshake(controller)
 
