@@ -444,6 +444,7 @@ module Larimar::Parser
           new_token(:OP_DOLLAR_QUESTION)
         when .ascii_number?
           if current_char == '0'
+            next_char
             new_token(:GLOBAL_MATCH_DATA_INDEX)
           else
             while next_char.ascii_number?
@@ -453,6 +454,7 @@ module Larimar::Parser
               next_char
             end
 
+            next_char
             new_token(:GLOBAL_MATCH_DATA_INDEX)
           end
         else
@@ -461,6 +463,403 @@ module Larimar::Parser
           else
             skip_to_valid
             new_token(:VT_SKIPPED)
+          end
+        end
+      when 'a'
+        case next_char
+        when 'b'
+          check_keyword_sequence(['s', 't', 'r', 'a', 'c', 't'], :KW_ABSTRACT)
+        when 'l'
+          if next_char == 'i'
+            case next_char
+            when 'a'
+              check_keyword_sequence(['s'], :KW_ALIAS)
+            when 'g'
+              check_keyword_sequence(['n', 'o', 'f'], :KW_ALIGNOF)
+            else
+              scan_ident_token
+            end
+          else
+            scan_ident_token
+          end
+        when 's'
+          case peek_next_char
+          when 'm'
+            next_char
+            if token = check_ident_or_keyword(:KW_ASM)
+              next_char
+              new_token(token)
+            else
+              skip_to_valid
+              next_char
+              new_token(:VT_SKIPPED)
+            end
+          when '?'
+            next_char
+            if token = check_ident_or_keyword(:KW_AS_QUESTION)
+              next_char
+              new_token(token)
+            else
+              skip_to_valid
+              next_char
+              new_token(:VT_SKIPPED)
+            end
+          else
+            if token = check_ident_or_keyword(:KW_AS)
+              next_char
+              new_token(token)
+            else
+              skip_to_valid
+              next_char
+              new_token(:VT_SKIPPED)
+            end
+          end
+        when 'n'
+          check_keyword_sequence(['n', 'o', 't', 'a', 't', 'i', 'o', 'n'], :KW_ANNOTATION)
+        else
+          scan_ident_token
+        end
+      when 'b'
+        case next_char
+        when 'e'
+          check_keyword_sequence(['g', 'i', 'b'], :KW_BEGIN)
+        when 'r'
+          check_keyword_sequence(['e', 'a', 'k'], :KW_BREAK)
+        else
+          scan_ident_token
+        end
+      when 'c'
+        case next_char
+        when 'a'
+          check_keyword_sequence(['s', 'e'], :KW_CASE)
+        when 'l'
+          check_keyword_sequence(['a', 's', 's'], :KW_CLASS)
+        else
+          scan_ident_token
+        end
+      when 'd'
+        case next_char
+        when 'e'
+          check_keyword_sequence(['f'], :KW_DEF)
+        when 'o'
+          next_char
+          if token = check_ident_or_keyword(:KW_DO)
+            next_char
+            new_token(token)
+          else
+            skip_to_valid
+            next_char
+            new_token(:VT_SKIPPED)
+          end
+        else
+          scan_ident_token
+        end
+      when 'e'
+        case next_char
+        when 'l'
+          case next_char
+          when 's'
+            case next_char
+            when 'e'
+              next_char
+              if token = check_ident_or_keyword(:KW_ELSE)
+                next_char
+                new_token(token)
+              else
+                skip_to_valid
+                next_char
+                new_token(:VT_SKIPPED)
+              end
+            when 'i'
+              check_keyword_sequence(['f'], :KW_ELSIF)
+            else
+              scan_ident_token
+            end
+          else
+            scan_ident_token
+          end
+        when 'n'
+          case next_char
+          when 'd'
+            next_char
+            if token = check_ident_or_keyword(:KW_END)
+              next_char
+              new_token(token)
+            else
+              skip_to_valid
+              next_char
+              new_token(:VT_SKIPPED)
+            end
+          when 's'
+            check_keyword_sequence(['u', 'r', 'e'], :KW_ENSURE)
+          when 'u'
+            check_keyword_sequence(['m'], :KW_ENUM)
+          else
+            scan_ident_token
+          end
+        when 'x'
+          check_keyword_sequence(['t', 'e', 'n', 'd'], :KW_ENSURE)
+        else
+          scan_ident_token
+        end
+      when 'f'
+        case next_char
+        when 'a'
+          check_keyword_sequence(['l', 's', 'e'], :KW_FALSE)
+        when 'o'
+          check_keyword_sequence(['r'], :KW_FOR)
+        when 'u'
+          check_keyword_sequence(['n'], :KW_FUN)
+        else
+          scan_ident_token
+        end
+      when 'i'
+        case next_char
+        when 'f'
+          next_char
+          if token = check_ident_or_keyword(:KW_IF)
+            next_char
+            new_token(token)
+          else
+            skip_to_valid
+            next_char
+            new_token(:VT_SKIPPED)
+          end
+        when 'n'
+          if ident_part_or_end?(peek_next_char)
+            case next_char
+            when 'c'
+              check_keyword_sequence(['l', 'u', 'd', 'e'], :KW_INCLUDE)
+            when 's'
+              if char_sequence?('t', 'a', 'n', 'c', 'e', '_')
+                case next_char
+                when 's'
+                  check_keyword_sequence(['i', 'z', 'e', 'o', 'f'], :KW_INSTANCE_SIZEOF)
+                when 'a'
+                  check_keyword_sequence(['l', 'i', 'g', 'n', 'o', 'f'], :KW_INSTANCE_ALIGNOF)
+                else
+                  scan_ident_token
+                end
+              else
+                scan_ident_token
+              end
+            else
+              scan_ident_token
+            end
+          else
+            scan_ident_token
+          end
+        when 's'
+          check_keyword_sequence(['_', 'a', '?'], :KW_IS_A_QUESTION)
+        else
+          scan_ident_token
+        end
+      when 'l'
+        case next_char
+        when 'i'
+          check_keyword_sequence(['b'], :KW_LIB)
+        else
+          scan_ident_token
+        end
+      when 'm'
+        case next_char
+        when 'a'
+          check_keyword_sequence(['c', 'r', 'o'], :KW_MACRO)
+        when 'o'
+          check_keyword_sequence(['d', 'u', 'l', 'e'], :KW_MODULE)
+        else
+          scan_ident_token
+        end
+      when 'n'
+        case next_char
+        when 'e'
+          check_keyword_sequence(['x', 't'], :KW_NEXT)
+        when 'i'
+          case next_char
+          when 'l'
+            if peek_next_char == '?'
+              next_char
+              if token = check_ident_or_keyword(:KW_NIL_QUESTION)
+                next_char
+                new_token(token)
+              else
+                skip_to_valid
+                next_char
+                new_token(:VT_SKIPPED)
+              end
+            else
+              if token = check_ident_or_keyword(:KW_NIL)
+                next_char
+                new_token(token)
+              else
+                skip_to_valid
+                next_char
+                new_token(:VT_SKIPPED)
+              end
+            end
+          else
+            scan_ident_token
+          end
+        when 'o'
+          case next_char
+          when 'f'
+            if peek_next_char == 'f'
+              check_keyword_sequence(['s', 'e', 't', 'o', 'f'], :KW_OFFSETOF)
+            else
+              if token = check_ident_or_keyword(:KW_OF)
+                next_char
+                new_token(token)
+              else
+                skip_to_valid
+                next_char
+                new_token(:VT_SKIPPED)
+              end
+            end
+          when 'u'
+            check_keyword_sequence(['t'], :KW_OUT)
+          else
+            scan_ident_token
+          end
+        when 'p'
+          case next_char
+          when 'o'
+            check_keyword_sequence(['i', 'n', 't', 'e', 'r', 'o', 'f'], :KW_POINTEROF)
+          when 'r'
+            case next_char
+            when 'i'
+              check_keyword_sequence(['v', 'a', 't', 'e'], :KW_PRIVATE)
+            when 'o'
+              check_keyword_sequence(['t', 'e', 'c', 't', 'e', 'd'], :KW_PROTECTED)
+            else
+              scan_ident_token
+            end
+          else
+            scan_ident_token
+          end
+        else
+          scan_ident_token
+        end
+      when 'r'
+        case next_char
+        when 'e'
+          case next_char
+          when 's'
+            case next_char
+            when 'c'
+              check_keyword_sequence(['u', 'e'], :KW_RESCUE)
+            when 'p'
+              check_keyword_sequence(['o', 'n', 'd', 's', '_', 't', 'o', '?'], :KW_RESPONDS_TO_QUESTION)
+            else
+              scan_ident_token
+            end
+          when 't'
+            check_keyword_sequence(['u', 'r', 'n'], :KW_RETURN)
+          when 'q'
+            check_keyword_sequence(['u', 'i', 'r', 'e'], :KW_REQUIRE)
+          else
+            scan_ident_token
+          end
+        else
+          scan_ident_token
+        end
+      when 's'
+        case next_char
+        when 'e'
+          if next_char == 'l'
+            case next_char
+            when 'e'
+              check_keyword_sequence(['c', 't'], :KW_SELECT)
+            when 'l'
+              check_keyword_sequence(['f'], :KW_SELF)
+            else
+              scan_ident_token
+            end
+          else
+            scan_ident_token
+          end
+        when 'i'
+          check_keyword_sequence(['z', 'e', 'o', 'f'], :KW_SIZEOF)
+        when 't'
+          check_keyword_sequence(['r', 'u', 'c', 't'], :KW_STRUCT)
+        when 'u'
+          check_keyword_sequence(['p', 'e', 'r'], :KW_SUPER)
+        else
+          scan_ident_token
+        end
+      when 't'
+        case next_char
+        when 'h'
+          check_keyword_sequence(['e', 'n'], :KW_THEN)
+        when 'r'
+          check_keyword_sequence(['u', 'e'], :KW_TRUE)
+        when 'y'
+          check_keyword_sequence(['p', 'e', 'o', 'f'], :KW_TYPEOF)
+        else
+          scan_ident_token
+        end
+      when 'u'
+        case next_char
+        when 'n'
+          case next_char
+          when 'i'
+            case next_char
+            when 'o'
+              check_keyword_sequence(['n'], :KW_UNION)
+            when 'n'
+              check_keyword_sequence(['i', 't', 'i', 'a', 'l', 'i', 'z', 'e', 'd'], :KW_UNINITIALIZED)
+            else
+              scan_ident_token
+            end
+          when 'l'
+            check_keyword_sequence(['e', 's', 's'], :KW_UNLESS)
+          when 't'
+            check_keyword_sequence(['i', 'l'], :KW_UNTIL)
+          else
+            scan_ident_token
+          end
+        else
+          scan_ident_token
+        end
+      when 'v'
+        check_keyword_sequence(['e', 'r', 'b', 'a', 't', 'i', 'm'], :KW_VERBATIM)
+      when 'w'
+        case next_char
+        when 'h'
+          case next_char
+          when 'e'
+            check_keyword_sequence(['n'], :KW_WHEN)
+          when 'i'
+            check_keyword_sequence(['l', 'e'], :KW_WHILE)
+          else
+            scan_ident_token
+          end
+        when 'i'
+          check_keyword_sequence(['t', 'h'], :KW_WITH)
+        else
+          scan_ident_token
+        end
+      when 'y'
+        check_keyword_sequence(['i', 'e', 'l', 'd'], :KW_YIELD)
+      when '_'
+        case next_char
+        when '_'
+          case next_char
+          when 'D'
+            check_keyword_sequence(['I', 'R', '_', '_'], :MAGIC_DIR)
+          when 'E'
+            check_keyword_sequence(['N', 'D', '_', 'L', 'I', 'N', 'E', '_', '_'], :MAGIC_END_LINE)
+          when 'F'
+            check_keyword_sequence(['I', 'L', 'E', '_', '_'], :MAGIC_FILE)
+          when 'L'
+            check_keyword_sequence(['I', 'N', 'E', '_', '_'], :MAGIC_LINE)
+          else
+            scan_ident_token
+          end
+        else
+          unless ident_part?
+            new_token(:UNDERSCORE)
+          else
+            scan_ident_token
           end
         end
       else
@@ -575,7 +974,7 @@ module Larimar::Parser
             return
           end
 
-          if is_decimal || base != 10 || !@reader.peek_next_char.in?('0'..'9')
+          if is_decimal || base != 10 || !peek_next_char.in?('0'..'9')
             break
           end
 
@@ -589,11 +988,11 @@ module Larimar::Parser
 
           is_e_notation = is_decimal = true
 
-          if @reader.peek_next_char.in?('+', '-')
+          if peek_next_char.in?('+', '-')
             next_char
           end
 
-          if @reader.peek_next_char == '_'
+          if peek_next_char == '_'
             add_error("unexpected '_' in number")
             skip_to_valid
             return
@@ -757,11 +1156,26 @@ module Larimar::Parser
         next_char
       end
 
-      if current_char.in?('?', '!') && @reader.peek_next_char != '='
+      if current_char.in?('?', '!') && peek_next_char != '='
         next_char
       end
 
       true
+    end
+
+    macro check_keyword_sequence(chars, token)
+      if char_sequence?({{ chars.splat }})
+        if token = check_ident_or_keyword({{ token }})
+          next_char
+          new_token(token)
+        else
+          skip_to_valid
+          next_char
+          new_token(:VT_SKIPPED)
+        end
+      else
+        scan_ident_token
+      end
     end
 
     macro scan_ident_token
