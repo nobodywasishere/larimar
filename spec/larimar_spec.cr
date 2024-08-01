@@ -4,7 +4,7 @@ class DummyController < Larimar::Controller
   def initialize
   end
 
-  def on_init(capabilites)
+  def on_init(capabilites) : LSProtocol::InitializeResult
     LSProtocol::InitializeResult.new(
       LSProtocol::ServerCapabilities.new(
         text_document_sync: LSProtocol::TextDocumentSyncKind::Incremental

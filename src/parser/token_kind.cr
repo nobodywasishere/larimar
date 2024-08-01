@@ -218,5 +218,13 @@ module Larimar::Parser
     #     end
     #   {% end %}
     # end
+
+    def operator?
+      self.in?(OP_BANG..OP_TILDE)
+    end
+
+    def keyword?
+      self.in?(KW_ABSTRACT..KW_YIELD)
+    end
   end
 end

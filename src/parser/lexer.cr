@@ -1,20 +1,26 @@
 module Larimar::Parser
   class Lexer
-    def self.lex(source : String) : {Array(Token), Array(Lexer::LexerError)}
-      lexer = new(source)
+    Log = ::Larimar::Log.for(self)
+
+    def self.lex(document : String | Document) : {Array(Token), Array(Lexer::LexerError)}
+      if document.is_a?(String)
+        document = Document.new(document)
+      end
+
+      document.seek_to(0)
+
+      lexer = new(document)
       tokens = Array(Larimar::Parser::Token).new
 
       idx = 0
       loop do
         tokens << (token = lexer.next_token)
-        break if token.kind.eof?
+        break if token.kind.eof? || document.eof?
 
         idx += 1
 
-        if idx > source.size
-          puts "OVERFLOW #{idx}"
-          pp token
-          exit
+        if idx > document.size
+          Log.error { "OVERFLOW #{idx}\n#{tokens}" }
         end
       end
 
@@ -23,11 +29,10 @@ module Larimar::Parser
 
     record(LexerError, message : String, pos : Int32)
 
-    getter reader : Char::Reader
+    getter reader : Document
     getter errors = Array(LexerError).new
 
-    def initialize(source : String)
-      @reader = Char::Reader.new(source)
+    def initialize(@reader : Parser::Document)
     end
 
     def next_token : Larimar::Parser::Token
@@ -46,7 +51,7 @@ module Larimar::Parser
           end
         when '\0'
           start = @reader.pos
-          return new_token(:EOF)
+          return new_token(TokenKind::EOF)
         else
           break
         end
@@ -397,6 +402,11 @@ module Larimar::Parser
             new_token(:VT_SKIPPED)
           end
         end
+      when '"'
+        next_char
+        skip_past('"')
+        next_char
+        new_token(:STRING)
       when '0'..'9'
         if scan_number
           new_token(:NUMBER)
@@ -472,6 +482,19 @@ module Larimar::Parser
           new_token(:VT_SKIPPED)
         end
       end
+    rescue ex
+      Log.error(exception: ex) { ex.message }
+      add_error(ex.message || "Error when lexing")
+
+      full_start = full_start.not_nil!
+      if start
+        new_token(:VT_SKIPPED)
+      else
+        Token.new(
+          :VT_SKIPPED, full_start, @reader.pos,
+          @reader.pos - full_start
+        )
+      end
     end
 
     def scan_number : Bool?
@@ -489,28 +512,28 @@ module Larimar::Parser
         when 'b' then base = 2
         when 'o' then base = 8
         when 'x' then base = 16
-          # when '0'..'9'
-          #   add_error("octal constants should be prefixed with 0o")
-          #   skip_to_valid
-          #   return
-          # when '_'
-          #   if next_char.in?('0'..'9')
-          #     add_error("octal constants should be prefixed with 0o")
-          #     skip_to_valid
-          #     return
-          #   end
+        when '0'..'9'
+          add_error("octal constants should be prefixed with 0o")
+          skip_to_valid
+          return
+        when '_'
+          if next_char.in?('0'..'9')
+            add_error("octal constants should be prefixed with 0o")
+            skip_to_valid
+            return
+          end
 
-          #   has_underscores = last_is_underscore = true
+          has_underscores = last_is_underscore = true
         end
 
         unless base == 10
           next_char
 
-          # if current_char == '_'
-          #   add_error("unexpected '_' in number")
-          #   skip_to_valid
-          #   return
-          # end
+          if current_char == '_'
+            add_error("unexpected '_' in number")
+            skip_to_valid
+            return
+          end
 
           digit = String::CHAR_TO_DIGIT[current_char.ord]?
           if digit.nil? || digit.to_u8! >= base
@@ -538,19 +561,19 @@ module Larimar::Parser
 
         case current_char
         when '_'
-          # if last_is_underscore
-          #   add_error("consecutive underscores in numbers aren't allowed")
-          #   skip_to_valid
-          #   return
-          # end
+          if last_is_underscore
+            add_error("consecutive underscores in numbers aren't allowed")
+            skip_to_valid
+            return
+          end
 
-          # has_underscores = last_is_underscore = true
+          has_underscores = last_is_underscore = true
         when '.'
-          # if last_is_underscore
-          #   add_error("unexpected '_' in number")
-          #   skip_to_valid
-          #   return
-          # end
+          if last_is_underscore
+            add_error("unexpected '_' in number")
+            skip_to_valid
+            return
+          end
 
           if is_decimal || base != 10 || !@reader.peek_next_char.in?('0'..'9')
             break
@@ -570,11 +593,11 @@ module Larimar::Parser
             next_char
           end
 
-          # if @reader.peek_next_char == '_'
-          #   add_error("unexpected '_' in number")
-          #   skip_to_valid
-          #   return
-          # end
+          if @reader.peek_next_char == '_'
+            add_error("unexpected '_' in number")
+            skip_to_valid
+            return
+          end
 
           pos_before_exponent = @reader.pos + 1
         when 'i', 'u', 'f'
@@ -598,11 +621,11 @@ module Larimar::Parser
           next_char
           break
         else
-          # if last_is_underscore
-          #   add_error("trailing '_' in number")
-          #   skip_to_valid
-          #   return
-          # end
+          if last_is_underscore
+            add_error("trailing '_' in number")
+            skip_to_valid
+            return
+          end
 
           break
         end

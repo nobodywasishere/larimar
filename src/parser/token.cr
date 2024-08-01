@@ -10,16 +10,20 @@ module Larimar::Parser
     def initialize(@kind : TokenKind, @full_start, @start, @length)
     end
 
-    def trivia(document : String) : String
-      document.byte_slice(full_start, start)
+    def trivia(document : Document) : String
+      document.slice(full_start, start)
     end
 
-    def text(document : String)
-      document.byte_slice(start, start + length)
+    def text(document : Document) : String
+      document.slice(start, start + length)
     end
 
-    def full_text(document : String)
-      document.byte_slice(full_start, start + length)
+    def text_length : Int32
+      length + full_start - start
+    end
+
+    def full_text(document : Document) : String
+      document.slice(full_start, start + length)
     end
   end
 end
