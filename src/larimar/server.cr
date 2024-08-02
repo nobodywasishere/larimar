@@ -91,7 +91,7 @@ class Larimar::Server
 
       send_msg(response || nil_response)
     rescue e
-      Log.error(exception: e) { e }
+      Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
 
       if message.is_a? LSProtocol::Request
         response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)

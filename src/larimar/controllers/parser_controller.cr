@@ -4,7 +4,6 @@ class Larimar::Parser::Controller < Larimar::Controller
 
   @pending_requests : Set(Int32 | String) = Set(Int32 | String).new
   @documents : Hash(URI, Parser::Document) = Hash(URI, Parser::Document).new
-  @errors : Hash(URI, Array(LSProtocol::Diagnostic)) = Hash(URI, Array(LSProtocol::Diagnostic)).new
 
   def on_init(capabilites : LSProtocol::ClientCapabilities) : LSProtocol::InitializeResult
     LSProtocol::InitializeResult.new(
@@ -68,18 +67,11 @@ class Larimar::Parser::Controller < Larimar::Controller
     params = message.params
     document_uri = params.text_document.uri
     tokens = [] of SemanticTokensVisitor::SemanticToken
-    diagnostics = [] of LSProtocol::Diagnostic
 
     return unless (document = @documents[document_uri]?)
 
     document.mutex.synchronize do
-      lexed_tokens, errors = Larimar::Parser::Lexer.lex(document)
-      tokens, diagnostics = convert_tokens_and_errors(document, lexed_tokens, errors)
-
-      @errors[document_uri] = diagnostics
-      update_errors(document_uri)
-    rescue e
-      Log.error(exception: e) { "Error when parsing semantic tokens - #{e}\n#{e.backtrace.join("\n")}" }
+      tokens = document.semantic_tokens
     end
 
     LSProtocol::TextDocumentSemanticTokensFullResponse.new(
@@ -90,22 +82,30 @@ class Larimar::Parser::Controller < Larimar::Controller
     )
   end
 
-  private def convert_tokens_and_errors(
-    document : Document, tokens : Array(Token), errors : Array(Lexer::LexerError)
-  ) : {Array(SemanticTokensVisitor::SemanticToken), Array(LSProtocol::Diagnostic)}
+  private def convert_tokens_and_errors(document : Document) Nil
     semantic = [] of SemanticTokensVisitor::SemanticToken
     diagnostics = [] of LSProtocol::Diagnostic
     prev_position = LSProtocol::Position.new(line: 0, character: 0)
 
-    tokens.each do |token|
-      position = document.index_to_position(token.start)
+    tokens = document.tokens
+    errors = document.lex_errors
+    doc_idx = 0
 
+    tokens.each do |token|
+      position = document.index_to_position(doc_idx + token.start)
+
+      # Log.info {"text: #{document.slice(doc_idx, token.length).inspect}"}
+      # Log.info {"pos: #{position.line},#{position.character}"}
+      # Log.info {"prev: #{prev_position.line},#{prev_position.character}"}
       line_diff = position.line - prev_position.line
       if line_diff > 0
         colm_diff = position.character
       else
         colm_diff = position.character - prev_position.character
       end
+      # Log.info {"line_diff: #{line_diff}"}
+      # Log.info {"colm_diff: #{colm_diff}"}
+      # Log.info {"length: #{token.length}"}
 
       prev_position = position
 
@@ -133,7 +133,7 @@ class Larimar::Parser::Controller < Larimar::Controller
         size: token.text_length, type: type
       )
 
-      if errs = errors.select { |e| token.start <= e.pos <= (token.start + token.text_length) }
+      if errs = errors.select { |e| doc_idx + token.start <= e.pos <= (doc_idx + token.length) }
         errs.each do |err|
           diagnostics << LSProtocol::Diagnostic.new(
             message: err.message,
@@ -151,10 +151,12 @@ class Larimar::Parser::Controller < Larimar::Controller
         end
       end
 
+      doc_idx += token.length
       previous_position = position
     end
 
-    {semantic, diagnostics}
+    document.semantic_tokens = semantic
+    document.diagnostics = diagnostics
   end
 
   # Notifications
@@ -176,14 +178,11 @@ class Larimar::Parser::Controller < Larimar::Controller
       params.text_document.version
     )
 
-    @errors[document_uri] = Array(LSProtocol::Diagnostic).new
-
     document.mutex.synchronize do
-      lexed_tokens, errors = Larimar::Parser::Lexer.lex(document)
-      tokens, diagnostics = convert_tokens_and_errors(document, lexed_tokens, errors)
+      Larimar::Parser::Lexer.lex_full(document)
+      convert_tokens_and_errors(document)
 
-      @errors[document_uri] = diagnostics
-      update_errors(document_uri)
+      update_errors(document_uri, document.diagnostics)
     end
 
     @documents[document_uri] = document
@@ -197,7 +196,7 @@ class Larimar::Parser::Controller < Larimar::Controller
 
     document.mutex.synchronize do
       @documents.delete(document_uri)
-      @errors.delete(document_uri)
+      update_errors(document_uri, Array(LSProtocol::Diagnostic).new)
     end
   end
 
@@ -213,16 +212,19 @@ class Larimar::Parser::Controller < Larimar::Controller
         case change
         when LSProtocol::TextDocumentContentChangeWholeDocument
           document.update_whole(change.text, version: params.text_document.version)
+
+          # Larimar::Parser::Lexer.lex_full(document)
         when LSProtocol::TextDocumentContentChangePartial
           document.update_partial(change.range, change.text, version: params.text_document.version)
+
+          # Larimar::Parser::Lexer.lex_partial(document, change.range, change.text.size)
         end
       end
 
-      lexed_tokens, errors = Larimar::Parser::Lexer.lex(document)
-      tokens, diagnostics = convert_tokens_and_errors(document, lexed_tokens, errors)
+      Larimar::Parser::Lexer.lex_full(document)
+      convert_tokens_and_errors(document)
 
-      @errors[document_uri] = diagnostics
-      update_errors(document_uri)
+      update_errors(document_uri, document.diagnostics)
     end
   end
 
@@ -232,11 +234,11 @@ class Larimar::Parser::Controller < Larimar::Controller
   def on_notification(message : LSProtocol::WorkspaceDidChangeWatchedFilesNotification) : Nil
   end
 
-  def update_errors(document_uri)
+  def update_errors(document_uri, diagnostics)
     server.send_msg(
       LSProtocol::TextDocumentPublishDiagnosticsNotification.new(
         params: LSProtocol::PublishDiagnosticsParams.new(
-          diagnostics: @errors[document_uri],
+          diagnostics: diagnostics,
           uri: document_uri
         )
       )

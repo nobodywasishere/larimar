@@ -2,11 +2,7 @@ module Larimar::Parser
   class Lexer
     Log = ::Larimar::Log.for(self)
 
-    def self.lex(document : String | Document) : {Array(Token), Array(Lexer::LexerError)}
-      if document.is_a?(String)
-        document = Document.new(document)
-      end
-
+    def self.lex_full(document : Document) : Nil
       document.seek_to(0)
 
       lexer = new(document)
@@ -24,7 +20,60 @@ module Larimar::Parser
         end
       end
 
-      {tokens, lexer.errors}
+      document.tokens = tokens
+      document.lex_errors = lexer.errors
+    end
+
+    def self.lex_partial(document : Document, range : LSProtocol::Range, edit_size : Int32) : Nil
+      lexer = new(document)
+      tokens = document.tokens
+
+      # find start index of first overlapping token
+      change_start_idx = document.position_to_index(range.start)
+
+      char_start_idx = 0
+      token_start_idx = 0
+      doc_idx = 0
+
+      # find end index of last overlapping token
+      tokens.each_with_index do |token, token_idx|
+        if doc_idx < change_start_idx
+          char_start_idx = doc_idx
+          token_start_idx = token_idx
+        end
+
+        doc_idx += token.length
+      end
+
+      # remove any relevant errors
+      # document.lex_errors.reject! { |e| char_start_idx <= e.pos && e.pos <= char_end_idx }
+
+      # seek document to the start index
+      document.seek_to(char_start_idx)
+      new_tokens = Array(Token).new
+
+      doc_idx = char_start_idx
+      doc_token_idx = doc_idx
+
+      token_end_idx = 0
+
+      loop do
+        new_tokens << (token = lexer.next_token)
+
+        if token.kind.eof? || document.eof?
+          token_end_idx = tokens.size
+          break
+        end
+
+        doc_idx += token.length
+
+        # if (char_start_idx + edit_size) > doc_idx
+
+        # end
+      end
+
+      tokens[token_start_idx...token_end_idx] = new_tokens
+      document.tokens = tokens
     end
 
     record(LexerError, message : String, pos : Int32)
@@ -882,7 +931,7 @@ module Larimar::Parser
         end
       end
     rescue ex
-      Log.error(exception: ex) { ex.message }
+      Log.error(exception: ex) { "Error when lexing next token: #{ex.message}\n#{ex.backtrace.join("\n")}" }
       add_error(ex.message || "Error when lexing")
 
       full_start = full_start.not_nil!
@@ -890,7 +939,7 @@ module Larimar::Parser
         new_token(:VT_SKIPPED)
       else
         Token.new(
-          :VT_SKIPPED, full_start, @reader.pos,
+          :VT_SKIPPED, @reader.pos - full_start,
           @reader.pos - full_start
         )
       end
@@ -1111,7 +1160,7 @@ module Larimar::Parser
 
     macro new_token(kind)
       Token.new(
-        {{ kind }}, full_start, start,
+        {{ kind }}, start - full_start,
         @reader.pos - full_start
       )
     end

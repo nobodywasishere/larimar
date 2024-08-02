@@ -8,6 +8,11 @@ class Larimar::Parser::Document
   getter version : Int32
   getter mutex : Mutex = Mutex.new
 
+  property tokens : Array(Token) = Array(Token).new
+  property semantic_tokens : Array(SemanticTokensVisitor::SemanticToken) = Array(SemanticTokensVisitor::SemanticToken).new
+  property lex_errors : Array(Lexer::LexerError) = Array(Lexer::LexerError).new
+  property diagnostics : Array(LSProtocol::Diagnostic) = Array(LSProtocol::Diagnostic).new
+
   def initialize(document : String, version : Int32 = 0)
     @chars = document.chars
     @pos = 0
@@ -55,7 +60,8 @@ class Larimar::Parser::Document
     @chars.size <= @pos
   end
 
-  def seek_to(@pos : Int32)
+  def seek_to(pos : Int32)
+    @pos = pos
   end
 
   def to_s(io : IO)
@@ -77,7 +83,7 @@ class Larimar::Parser::Document
     @chars.count('\n')
   end
 
-  private def position_to_index(position : LSProtocol::Position) : Int32
+  def position_to_index(position : LSProtocol::Position) : Int32
     line = 0
     colm = 0
     posi = 0
