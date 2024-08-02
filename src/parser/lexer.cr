@@ -534,23 +534,19 @@ module Larimar::Parser
         when 's'
           case peek_next_char
           when 'm'
-            next_char
             if token = check_ident_or_keyword(:KW_ASM)
               next_char
               new_token(token)
             else
               skip_to_valid
-              next_char
               new_token(:VT_SKIPPED)
             end
           when '?'
-            next_char
             if token = check_ident_or_keyword(:KW_AS_QUESTION)
               next_char
               new_token(token)
             else
               skip_to_valid
-              next_char
               new_token(:VT_SKIPPED)
             end
           else
@@ -559,7 +555,6 @@ module Larimar::Parser
               new_token(token)
             else
               skip_to_valid
-              next_char
               new_token(:VT_SKIPPED)
             end
           end
@@ -591,13 +586,11 @@ module Larimar::Parser
         when 'e'
           check_keyword_sequence(['f'], :KW_DEF)
         when 'o'
-          next_char
           if token = check_ident_or_keyword(:KW_DO)
             next_char
             new_token(token)
           else
             skip_to_valid
-            next_char
             new_token(:VT_SKIPPED)
           end
         else
@@ -612,11 +605,9 @@ module Larimar::Parser
             when 'e'
               next_char
               if token = check_ident_or_keyword(:KW_ELSE)
-                next_char
                 new_token(token)
               else
                 skip_to_valid
-                next_char
                 new_token(:VT_SKIPPED)
               end
             when 'i'
@@ -630,13 +621,11 @@ module Larimar::Parser
         when 'n'
           case next_char
           when 'd'
-            next_char
             if token = check_ident_or_keyword(:KW_END)
               next_char
               new_token(token)
             else
               skip_to_valid
-              next_char
               new_token(:VT_SKIPPED)
             end
           when 's'
@@ -665,13 +654,11 @@ module Larimar::Parser
       when 'i'
         case next_char
         when 'f'
-          next_char
           if token = check_ident_or_keyword(:KW_IF)
             next_char
             new_token(token)
           else
             skip_to_valid
-            next_char
             new_token(:VT_SKIPPED)
           end
         when 'n'
@@ -733,7 +720,6 @@ module Larimar::Parser
                 new_token(token)
               else
                 skip_to_valid
-                next_char
                 new_token(:VT_SKIPPED)
               end
             else
@@ -742,7 +728,6 @@ module Larimar::Parser
                 new_token(token)
               else
                 skip_to_valid
-                next_char
                 new_token(:VT_SKIPPED)
               end
             end
@@ -760,7 +745,6 @@ module Larimar::Parser
                 new_token(token)
               else
                 skip_to_valid
-                next_char
                 new_token(:VT_SKIPPED)
               end
             end
@@ -1219,7 +1203,6 @@ module Larimar::Parser
           new_token(token)
         else
           skip_to_valid
-          next_char
           new_token(:VT_SKIPPED)
         end
       else
