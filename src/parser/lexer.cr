@@ -81,6 +81,8 @@ module Larimar::Parser
     getter reader : Document
     getter errors = Array(LexerError).new
 
+    @wants_symbol = true
+
     def initialize(@reader : Parser::Document)
     end
 
@@ -305,12 +307,18 @@ module Larimar::Parser
         next_char
         new_token(:OP_SEMICOLON)
       when ':'
-        if next_char == ':'
+        if peek_next_char == ':'
+          next_char
           next_char
           new_token(:OP_COLON_COLON)
-        elsif false
-          # consume_symbol
-          new_token(:SYMBOL)
+        elsif @wants_symbol
+          if token = scan_symbol
+            next_char
+            new_token(token)
+          else
+            skip_to_valid
+            new_token(:VT_SKIPPED)
+          end
         else
           new_token(:OP_COLON)
         end
@@ -1048,7 +1056,10 @@ module Larimar::Parser
             break
           end
 
-          scan_number_suffix
+          if !scan_number_suffix
+            skip_to_valid
+            return
+          end
 
           next_char
           break
@@ -1069,8 +1080,6 @@ module Larimar::Parser
     end
 
     def scan_number_suffix : Bool?
-      # puts "scanning number suffix"
-
       case current_char
       when 'i'
         case next_char
@@ -1078,14 +1087,14 @@ module Larimar::Parser
         when '1'
           case next_char
           when '2'
-            next_char == '8'
+            next_char == '8' || add_error("invalid int suffix")
           when '6'
             true
           end
         when '3'
-          next_char == '2'
+          next_char == '2' || add_error("invalid int suffix")
         when '6'
-          next_char == '4'
+          next_char == '4' || add_error("invalid int suffix")
         else
           add_error("invalid int suffix")
           false
@@ -1097,14 +1106,14 @@ module Larimar::Parser
         when '1'
           case next_char
           when '2'
-            next_char == '8'
+            next_char == '8' || add_error("invalid uint suffix")
           when '6'
             true
           end
         when '3'
-          next_char == '2'
+          next_char == '2' || add_error("invalid uint suffix")
         when '6'
-          next_char == '4'
+          next_char == '4' || add_error("invalid uint suffix")
         else
           add_error("invalid uint suffix")
           false
@@ -1112,9 +1121,9 @@ module Larimar::Parser
       when 'f'
         case next_char
         when '3'
-          next_char == '2'
+          next_char == '2' || add_error("invalid float suffix")
         when '6'
-          next_char == '4'
+          next_char == '4' || add_error("invalid float suffix")
         else
           add_error("invalid float suffix")
           false
@@ -1247,6 +1256,136 @@ module Larimar::Parser
 
     def peek_next_char
       @reader.peek_next_char
+    end
+
+    def scan_symbol : TokenKind?
+      case next_char
+      when ':'
+        next_char
+        TokenKind::OP_COLON_COLON
+      when '+', '-', '|', '^', '~', '%'
+        next_char
+        TokenKind::SYMBOL
+      when '*'
+        case next_char
+        when '*'
+          next_char
+          TokenKind::SYMBOL
+        else
+          TokenKind::SYMBOL
+        end
+      when '/'
+        case next_char
+        when '/'
+          next_char
+          TokenKind::SYMBOL
+        else
+          TokenKind::SYMBOL
+        end
+      when '='
+        case next_char
+        when '='
+          if next_char == '='
+            next_char
+            TokenKind::SYMBOL
+          else
+            TokenKind::SYMBOL
+          end
+        when '~'
+          next_char
+          TokenKind::SYMBOL
+        else
+          add_error("Unknown symbol")
+          nil
+        end
+      when '!'
+        case next_char
+        when '='
+          next_char
+          TokenKind::SYMBOL
+        when '~'
+          next_char
+          TokenKind::SYMBOL
+        else
+          TokenKind::SYMBOL
+        end
+      when '<'
+        case next_char
+        when '='
+          if next_char == '>'
+            next_char
+            TokenKind::SYMBOL
+          else
+            TokenKind::SYMBOL
+          end
+        when '<'
+          next_char
+          TokenKind::SYMBOL
+        else
+          TokenKind::SYMBOL
+        end
+      when '>'
+        case next_char
+        when '='
+          next_char
+          TokenKind::SYMBOL
+        when '>'
+          next_char
+          TokenKind::SYMBOL
+        else
+          TokenKind::SYMBOL
+        end
+      when '&'
+        case next_char
+        when '+'
+          next_char
+          TokenKind::SYMBOL
+        when '-'
+          next_char
+          TokenKind::SYMBOL
+        when '*'
+          case next_char
+          when '*'
+            next_char
+            TokenKind::SYMBOL
+          else
+            TokenKind::SYMBOL
+          end
+        else
+          TokenKind::SYMBOL
+        end
+      when '['
+        if next_char == ']'
+          case next_char
+          when '='
+            next_char
+            TokenKind::SYMBOL
+          when '?'
+            next_char
+            TokenKind::SYMBOL
+          else
+            TokenKind::SYMBOL
+          end
+        else
+          add_error("Unknown symbol")
+          nil
+        end
+      when '"'
+        next_char
+        skip_past('"')
+        next_char
+        TokenKind::SYMBOL
+      else
+        if ident_start?
+          if scan_ident
+            TokenKind::SYMBOL
+          else
+            nil
+          end
+        else
+          TokenKind::OP_COLON
+        end
+      end
     end
   end
 end

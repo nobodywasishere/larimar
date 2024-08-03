@@ -82,7 +82,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     )
   end
 
-  private def convert_tokens_and_errors(document : Document) Nil
+  def convert_tokens_and_errors(document : Document) Nil
     semantic = [] of SemanticTokensVisitor::SemanticToken
     diagnostics = [] of LSProtocol::Diagnostic
     prev_position = LSProtocol::Position.new(line: 0, character: 0)
@@ -94,18 +94,12 @@ class Larimar::Parser::Controller < Larimar::Controller
     tokens.each do |token|
       position = document.index_to_position(doc_idx + token.start)
 
-      # Log.info {"text: #{document.slice(doc_idx, token.length).inspect}"}
-      # Log.info {"pos: #{position.line},#{position.character}"}
-      # Log.info {"prev: #{prev_position.line},#{prev_position.character}"}
       line_diff = position.line - prev_position.line
       if line_diff > 0
         colm_diff = position.character
       else
         colm_diff = position.character - prev_position.character
       end
-      # Log.info {"line_diff: #{line_diff}"}
-      # Log.info {"colm_diff: #{colm_diff}"}
-      # Log.info {"length: #{token.length}"}
 
       prev_position = position
 
@@ -124,6 +118,8 @@ class Larimar::Parser::Controller < Larimar::Controller
                LSProtocol::SemanticTokenTypes::Keyword
              when .number?
                LSProtocol::SemanticTokenTypes::Number
+             when .symbol?
+               LSProtocol::SemanticTokenTypes::EnumMember
              else
                LSProtocol::SemanticTokenTypes::Type
              end
@@ -152,7 +148,6 @@ class Larimar::Parser::Controller < Larimar::Controller
       end
 
       doc_idx += token.length
-      previous_position = position
     end
 
     document.semantic_tokens = semantic
