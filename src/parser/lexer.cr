@@ -313,7 +313,6 @@ module Larimar::Parser
           new_token(:OP_COLON_COLON)
         elsif @wants_symbol
           if token = scan_symbol
-            next_char
             new_token(token)
           else
             skip_to_valid
@@ -429,6 +428,7 @@ module Larimar::Parser
             end
           when 'u'
             skip_to_valid
+            add_error("unicode chars currently not supported")
             new_token(:VT_SKIPPED)
           when '\0'
             add_error("unterminated char literal")
@@ -542,24 +542,19 @@ module Larimar::Parser
         when 's'
           case peek_next_char
           when 'm'
+            next_char
             if token = check_ident_or_keyword(:KW_ASM)
-              next_char
               new_token(token)
             else
               skip_to_valid
               new_token(:VT_SKIPPED)
             end
           when '?'
-            if token = check_ident_or_keyword(:KW_AS_QUESTION)
-              next_char
-              new_token(token)
-            else
-              skip_to_valid
-              new_token(:VT_SKIPPED)
-            end
+            next_char
+            next_char
+            new_token(:KW_AS_QUESTION)
           else
             if token = check_ident_or_keyword(:KW_AS)
-              next_char
               new_token(token)
             else
               skip_to_valid
@@ -574,7 +569,7 @@ module Larimar::Parser
       when 'b'
         case next_char
         when 'e'
-          check_keyword_sequence(['g', 'i', 'b'], :KW_BEGIN)
+          check_keyword_sequence(['g', 'i', 'n'], :KW_BEGIN)
         when 'r'
           check_keyword_sequence(['e', 'a', 'k'], :KW_BREAK)
         else
@@ -595,7 +590,6 @@ module Larimar::Parser
           check_keyword_sequence(['f'], :KW_DEF)
         when 'o'
           if token = check_ident_or_keyword(:KW_DO)
-            next_char
             new_token(token)
           else
             skip_to_valid
@@ -611,7 +605,6 @@ module Larimar::Parser
           when 's'
             case next_char
             when 'e'
-              next_char
               if token = check_ident_or_keyword(:KW_ELSE)
                 new_token(token)
               else
@@ -630,7 +623,6 @@ module Larimar::Parser
           case next_char
           when 'd'
             if token = check_ident_or_keyword(:KW_END)
-              next_char
               new_token(token)
             else
               skip_to_valid
@@ -663,7 +655,6 @@ module Larimar::Parser
         case next_char
         when 'f'
           if token = check_ident_or_keyword(:KW_IF)
-            next_char
             new_token(token)
           else
             skip_to_valid
@@ -723,16 +714,10 @@ module Larimar::Parser
           when 'l'
             if peek_next_char == '?'
               next_char
-              if token = check_ident_or_keyword(:KW_NIL_QUESTION)
-                next_char
-                new_token(token)
-              else
-                skip_to_valid
-                new_token(:VT_SKIPPED)
-              end
+              next_char
+              new_token(:KW_NIL_QUESTION)
             else
               if token = check_ident_or_keyword(:KW_NIL)
-                next_char
                 new_token(token)
               else
                 skip_to_valid
@@ -742,38 +727,37 @@ module Larimar::Parser
           else
             scan_ident_token
           end
+        else
+          scan_ident_token
+        end
+      when 'o'
+        case next_char
+        when 'f'
+          if peek_next_char == 'f'
+            check_keyword_sequence(['s', 'e', 't', 'o', 'f'], :KW_OFFSETOF)
+          else
+            if token = check_ident_or_keyword(:KW_OF)
+              new_token(token)
+            else
+              skip_to_valid
+              new_token(:VT_SKIPPED)
+            end
+          end
+        when 'u'
+          check_keyword_sequence(['t'], :KW_OUT)
+        else
+          scan_ident_token
+        end
+      when 'p'
+        case next_char
         when 'o'
+          check_keyword_sequence(['i', 'n', 't', 'e', 'r', 'o', 'f'], :KW_POINTEROF)
+        when 'r'
           case next_char
-          when 'f'
-            if peek_next_char == 'f'
-              check_keyword_sequence(['s', 'e', 't', 'o', 'f'], :KW_OFFSETOF)
-            else
-              if token = check_ident_or_keyword(:KW_OF)
-                next_char
-                new_token(token)
-              else
-                skip_to_valid
-                new_token(:VT_SKIPPED)
-              end
-            end
-          when 'u'
-            check_keyword_sequence(['t'], :KW_OUT)
-          else
-            scan_ident_token
-          end
-        when 'p'
-          case next_char
+          when 'i'
+            check_keyword_sequence(['v', 'a', 't', 'e'], :KW_PRIVATE)
           when 'o'
-            check_keyword_sequence(['i', 'n', 't', 'e', 'r', 'o', 'f'], :KW_POINTEROF)
-          when 'r'
-            case next_char
-            when 'i'
-              check_keyword_sequence(['v', 'a', 't', 'e'], :KW_PRIVATE)
-            when 'o'
-              check_keyword_sequence(['t', 'e', 'c', 't', 'e', 'd'], :KW_PROTECTED)
-            else
-              scan_ident_token
-            end
+            check_keyword_sequence(['t', 'e', 'c', 't', 'e', 'd'], :KW_PROTECTED)
           else
             scan_ident_token
           end
@@ -810,8 +794,13 @@ module Larimar::Parser
             case next_char
             when 'e'
               check_keyword_sequence(['c', 't'], :KW_SELECT)
-            when 'l'
-              check_keyword_sequence(['f'], :KW_SELF)
+            when 'f'
+              if token = check_ident_or_keyword(:KW_SELF)
+                new_token(token)
+              else
+                skip_to_valid
+                new_token(:VT_SKIPPED)
+              end
             else
               scan_ident_token
             end
@@ -1207,8 +1196,10 @@ module Larimar::Parser
 
     macro check_keyword_sequence(chars, token)
       if char_sequence?({{ chars.splat }})
-        if token = check_ident_or_keyword({{ token }})
+        if current_char.in?('?', '!')
           next_char
+          new_token({{ token }})
+        elsif token = check_ident_or_keyword({{ token }})
           new_token(token)
         else
           skip_to_valid
@@ -1242,6 +1233,7 @@ module Larimar::Parser
           nil
         end
       else
+        next_char
         keyword
       end
     end

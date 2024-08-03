@@ -82,18 +82,54 @@ class Larimar::Parser::Controller < Larimar::Controller
     )
   end
 
-  def convert_tokens_and_errors(document : Document) Nil
-    semantic = [] of SemanticTokensVisitor::SemanticToken
-    diagnostics = [] of LSProtocol::Diagnostic
+  def self.each_token_with_pos(document, &)
+    doc_idx = 0
+    prev_colm = 0
+    line_count = 0
+    colm_count = 0
+
+    prev_token_length = 0
     prev_position = LSProtocol::Position.new(line: 0, character: 0)
 
-    tokens = document.tokens
-    errors = document.lex_errors
-    doc_idx = 0
+    document.tokens.each do |token|
+      slice = document.slice(doc_idx, token.start)
+      line_count += slice.count('\n')
+      line_diff = line_count - prev_position.line
 
-    tokens.each do |token|
-      position = document.index_to_position(doc_idx + token.start)
+      if line_diff > 0 && slice.includes?('\n')
+        colm_count = slice.size - slice.rindex('\n').not_nil! - 1
+      else
+        colm_count += token.start + prev_token_length
+      end
 
+      position = LSProtocol::Position.new(
+        line: line_count.to_u32, character: colm_count.to_u32
+      )
+
+      yield doc_idx, token, position
+
+      prev_position = position
+      prev_token_length = token.text_length
+
+      slice = document.slice(doc_idx + token.start, token.text_length)
+
+      line_count += slice.count('\n')
+      if slice.includes?('\n')
+        colm_count = slice.size - slice.rindex('\n').not_nil! - 1
+      end
+
+      doc_idx += token.length
+    end
+  end
+
+  def self.generate_semantic_tokens(document : Document)
+    semantic = [] of SemanticTokensVisitor::SemanticToken
+
+    line_diff = 0
+    colm_diff = 0
+    prev_position = LSProtocol::Position.new(line: 0, character: 0)
+
+    each_token_with_pos(document) do |doc_idx, token, position|
       line_diff = position.line - prev_position.line
       if line_diff > 0
         colm_diff = position.character
@@ -128,29 +164,32 @@ class Larimar::Parser::Controller < Larimar::Controller
         line: line_diff.to_i32, char: colm_diff.to_i32,
         size: token.text_length, type: type
       )
+    end
 
+    document.semantic_tokens = semantic
+  end
+
+  def self.generate_diagnostics(document : Document)
+    diagnostics = [] of LSProtocol::Diagnostic
+    errors = document.lex_errors
+
+    each_token_with_pos(document) do |doc_idx, token, position|
       if errs = errors.select { |e| doc_idx + token.start <= e.pos <= (doc_idx + token.length) }
         errs.each do |err|
           diagnostics << LSProtocol::Diagnostic.new(
             message: err.message,
             range: LSProtocol::Range.new(
-              start: LSProtocol::Position.new(
-                line: position.line,
-                character: position.character
-              ),
+              start: position,
               end: LSProtocol::Position.new(
                 line: position.line,
-                character: (position.character + token.text_length).to_u32
+                character: position.character + token.text_length
               )
             )
           )
         end
       end
-
-      doc_idx += token.length
     end
 
-    document.semantic_tokens = semantic
     document.diagnostics = diagnostics
   end
 
@@ -175,7 +214,8 @@ class Larimar::Parser::Controller < Larimar::Controller
 
     document.mutex.synchronize do
       Larimar::Parser::Lexer.lex_full(document)
-      convert_tokens_and_errors(document)
+      self.class.generate_semantic_tokens(document)
+      self.class.generate_diagnostics(document)
 
       update_errors(document_uri, document.diagnostics)
     end
@@ -217,7 +257,8 @@ class Larimar::Parser::Controller < Larimar::Controller
       end
 
       Larimar::Parser::Lexer.lex_full(document)
-      convert_tokens_and_errors(document)
+      self.class.generate_semantic_tokens(document)
+      self.class.generate_diagnostics(document)
 
       update_errors(document_uri, document.diagnostics)
     end
