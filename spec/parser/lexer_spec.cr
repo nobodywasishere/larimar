@@ -10,8 +10,8 @@ describe Larimar::Parser::Lexer do
     Larimar::Parser::Lexer.lex_full(document)
 
     document.tokens.should eq([
-      Larimar::Parser::Token.new(:IDENT, 0, 5),
-      Larimar::Parser::Token.new(:IDENT, 1, 6)
+      Larimar::Parser::Token.new(:IDENT, 0, 5, false),
+      Larimar::Parser::Token.new(:IDENT, 1, 6, true)
     ])
     document.lex_errors.size.should eq(0)
   end
@@ -48,9 +48,9 @@ describe Larimar::Parser::Lexer do
     Larimar::Parser::Lexer.lex_partial(document, range, edit.size)
 
     document.tokens.should eq([
-      Larimar::Parser::Token.new(:IDENT, 0, 5),
-      Larimar::Parser::Token.new(:IDENT, 1, 7),
-      Larimar::Parser::Token.new(:IDENT, 1, 6)
+      Larimar::Parser::Token.new(:IDENT, 0, 5, false),
+      Larimar::Parser::Token.new(:IDENT, 1, 7, false),
+      Larimar::Parser::Token.new(:IDENT, 1, 6, true)
     ])
     document.lex_errors.size.should eq(0)
   end
@@ -64,9 +64,9 @@ describe Larimar::Parser::Lexer do
     Larimar::Parser::Lexer.lex_full(document)
 
     document.tokens.should eq([
-      Larimar::Parser::Token.new(:IDENT, 0, 2),
-      Larimar::Parser::Token.new(:IDENT, 1, 6),
-      Larimar::Parser::Token.new(:IDENT, 1, 7)
+      Larimar::Parser::Token.new(:IDENT, 0, 2, false),
+      Larimar::Parser::Token.new(:IDENT, 1, 6, false),
+      Larimar::Parser::Token.new(:IDENT, 1, 7, true)
     ])
     document.lex_errors.size.should eq(0)
 
@@ -91,9 +91,9 @@ describe Larimar::Parser::Lexer do
     Larimar::Parser::Lexer.lex_partial(document, range, edit.size)
 
     document.tokens.should eq([
-      Larimar::Parser::Token.new(:KW_DEF, 0, 3),
-      Larimar::Parser::Token.new(:IDENT, 1, 6),
-      Larimar::Parser::Token.new(:IDENT, 1, 7)
+      Larimar::Parser::Token.new(:KW_DEF, 0, 3, false),
+      Larimar::Parser::Token.new(:IDENT, 1, 6, false),
+      Larimar::Parser::Token.new(:IDENT, 1, 7, true)
     ])
     document.lex_errors.size.should eq(0)
   end
@@ -107,9 +107,9 @@ describe Larimar::Parser::Lexer do
     Larimar::Parser::Lexer.lex_full(document)
 
     document.tokens.should eq([
-      Larimar::Parser::Token.new(:IDENT, 0, 2),
-      Larimar::Parser::Token.new(:IDENT, 1, 6),
-      Larimar::Parser::Token.new(:IDENT, 1, 7)
+      Larimar::Parser::Token.new(:IDENT, 0, 2, false),
+      Larimar::Parser::Token.new(:IDENT, 1, 6, false),
+      Larimar::Parser::Token.new(:IDENT, 1, 7, true)
     ])
     document.lex_errors.size.should eq(0)
 
@@ -134,10 +134,10 @@ describe Larimar::Parser::Lexer do
     Larimar::Parser::Lexer.lex_partial(document, range, edit.size)
 
     document.tokens.should eq([
-      Larimar::Parser::Token.new(:KW_ABSTRACT, 0, 8),
-      Larimar::Parser::Token.new(:KW_DEF, 1, 4),
-      Larimar::Parser::Token.new(:IDENT, 1, 6),
-      Larimar::Parser::Token.new(:IDENT, 1, 7)
+      Larimar::Parser::Token.new(:KW_ABSTRACT, 0, 8, false),
+      Larimar::Parser::Token.new(:KW_DEF, 1, 4, false),
+      Larimar::Parser::Token.new(:IDENT, 1, 6, false),
+      Larimar::Parser::Token.new(:IDENT, 1, 7, true)
     ])
     document.lex_errors.size.should eq(0)
   end

@@ -1,4 +1,4 @@
-module Larimar::Parser
+class Larimar::Parser
   enum TokenKind : UInt8
     EOF
     # SPACE
@@ -188,43 +188,16 @@ module Larimar::Parser
     KW_WITH
     KW_YIELD
 
-    # # non-flag enums are special since the `IO` overload relies on the
-    # # `String`-returning overload instead of the other way round
-    # def to_s : String
-    #   {% begin %}
-    #     {%
-    #       operator1 = {
-    #         "BANG" => "!", "DOLLAR" => "$", "PERCENT" => "%", "AMP" => "&", "LPAREN" => "(",
-    #         "RPAREN" => ")", "STAR" => "*", "PLUS" => "+", "COMMA" => ",", "MINUS" => "-",
-    #         "PERIOD" => ".", "SLASH" => "/", "COLON" => ":", "SEMICOLON" => ";", "LT" => "<",
-    #         "EQ" => "=", "GT" => ">", "QUESTION" => "?", "AT" => "@", "LSQUARE" => "[",
-    #         "RSQUARE" => "]", "CARET" => "^", "GRAVE" => "`", "LCURLY" => "{", "BAR" => "|",
-    #         "RCURLY" => "}", "TILDE" => "~",
-    #       }
-    #     %}
-
-    #     case self
-    #     {% for member in @type.constants %}
-    #     in {{ member.id }}
-    #       {% if member.starts_with?("OP_") %}
-    #         {% parts = member.split("_") %}
-    #         {{ parts.map { |ch| operator1[ch] || "" }.join("") }}
-    #       {% elsif member.starts_with?("MAGIC_") %}
-    #         {{ "__#{member[6..-1].id}__" }}
-    #       {% else %}
-    #         {{ member.stringify }}
-    #       {% end %}
-    #     {% end %}
-    #     end
-    #   {% end %}
-    # end
-
     def operator?
       self.in?(OP_BANG..OP_TILDE)
     end
 
     def keyword?
       self.in?(KW_ABSTRACT..KW_YIELD)
+    end
+
+    def unary_operator?
+      self.in?(OP_BANG, OP_PLUS, OP_MINUS, OP_TILDE, OP_AMP_PLUS, OP_AMP_MINUS)
     end
   end
 end

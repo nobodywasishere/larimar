@@ -1,4 +1,4 @@
-module Larimar::Parser
+class Larimar::Parser
   struct Token
     include JSON::Serializable
 
@@ -10,7 +10,9 @@ module Larimar::Parser
     # Length of the entire token
     getter length : Int32
 
-    def initialize(@kind : TokenKind, @start, @length)
+    getter trivia_newline : Bool
+
+    def initialize(@kind : TokenKind, @start, @length, @trivia_newline)
     end
 
     def text_length : Int32

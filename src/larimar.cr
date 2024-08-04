@@ -7,6 +7,8 @@ require "./parser/document"
 require "./parser/lexer"
 require "./parser/token_kind"
 require "./parser/token"
+require "./parser/ast"
+require "./parser/parser"
 
 require "./larimar/log"
 require "./larimar/text_document"

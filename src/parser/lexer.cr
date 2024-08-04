@@ -1,4 +1,4 @@
-module Larimar::Parser
+class Larimar::Parser
   class Lexer
     Log = ::Larimar::Log.for(self)
 
@@ -88,6 +88,7 @@ module Larimar::Parser
 
     def next_token : Larimar::Parser::Token
       full_start = @reader.pos
+      trivia_newline = false
 
       # Capture whitespace and comments
       loop do
@@ -95,6 +96,7 @@ module Larimar::Parser
         when ' ', '\t', '\r'
           next_char
         when '\n'
+          trivia_newline = true
           next_char
         when '#'
           until current_char.in?('\r', '\n', '\0')
@@ -329,6 +331,7 @@ module Larimar::Parser
         when '.'
           case next_char
           when '.'
+            next_char
             new_token(:OP_PERIOD_PERIOD_PERIOD)
           else
             new_token(:OP_PERIOD_PERIOD)
@@ -916,12 +919,14 @@ module Larimar::Parser
       add_error(ex.message || "Error when lexing")
 
       full_start = full_start.not_nil!
+      trivia_newline = trivia_newline.nil? ? false : trivia_newline
+
       if start
-        new_token(:VT_SKIPPED)
+        new_token(TokenKind::VT_SKIPPED)
       else
         Token.new(
           :VT_SKIPPED, @reader.pos - full_start,
-          @reader.pos - full_start
+          @reader.pos - full_start, trivia_newline
         )
       end
     end
@@ -1143,7 +1148,7 @@ module Larimar::Parser
     macro new_token(kind)
       Token.new(
         {{ kind }}, start - full_start,
-        @reader.pos - full_start
+        @reader.pos - full_start, trivia_newline
       )
     end
 
