@@ -144,7 +144,7 @@ class Larimar::Parser::Controller < Larimar::Controller
                LSProtocol::SemanticTokenTypes::Variable
              when .const?
                LSProtocol::SemanticTokenTypes::Namespace
-             when .string?, .char?
+             when .string?, .char?, .op_grave?
                LSProtocol::SemanticTokenTypes::String
              when .instance_var?, .class_var?
                LSProtocol::SemanticTokenTypes::Property

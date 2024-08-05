@@ -20,6 +20,10 @@ class Larimar::Parser
         end
       end
 
+      if tokens.empty? || !tokens.last.kind.eof?
+        tokens << Token.new(:EOF, 0, 0, false)
+      end
+
       document.tokens = tokens
       document.lex_errors = lexer.errors
     end
@@ -467,6 +471,11 @@ class Larimar::Parser
         skip_past('"')
         next_char
         new_token(:STRING)
+      when '`'
+        next_char
+        skip_past('`')
+        next_char
+        new_token(:OP_GRAVE)
       when '0'..'9'
         if scan_number
           new_token(:NUMBER)
@@ -648,7 +657,19 @@ class Larimar::Parser
         when 'a'
           check_keyword_sequence(['l', 's', 'e'], :KW_FALSE)
         when 'o'
-          check_keyword_sequence(['r'], :KW_FOR)
+          if next_char == 'r'
+            if peek_next_char == 'a'
+              next_char
+              check_keyword_sequence(['l', 'l'], :KW_FORALL)
+            elsif token = check_ident_or_keyword(:KW_FOR)
+              new_token(token)
+            else
+              skip_to_valid
+              new_token(:VT_SKIPPED)
+            end
+          else
+            scan_ident_token
+          end
         when 'u'
           check_keyword_sequence(['n'], :KW_FUN)
         else
@@ -737,6 +758,7 @@ class Larimar::Parser
         case next_char
         when 'f'
           if peek_next_char == 'f'
+            next_char
             check_keyword_sequence(['s', 'e', 't', 'o', 'f'], :KW_OFFSETOF)
           else
             if token = check_ident_or_keyword(:KW_OF)

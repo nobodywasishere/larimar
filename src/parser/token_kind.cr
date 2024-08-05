@@ -146,6 +146,7 @@ class Larimar::Parser
     KW_EXTEND
     KW_FALSE
     KW_FOR
+    KW_FORALL
     KW_FUN
     KW_IF
     KW_IN
