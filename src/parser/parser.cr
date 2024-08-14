@@ -81,7 +81,16 @@ class Larimar::Parser
       expression = parse_or
     end
 
+    case current_token.kind
+    when .op_period_period?, .op_period_period_period?
+      expression = new_range(expression)
+    end
+
     loop do
+      if current_token.trivia_newline
+        break
+      end
+
       case current_token.kind
       when .op_period_period?, .op_period_period_period?
         expression = new_range(expression)
@@ -98,8 +107,8 @@ class Larimar::Parser
     next_token
 
     kind = current_token.kind
-    if end_token? || kind.op_rparen? || kind.op_comma? || kind.op_eq_gt? ||
-        kind.op_semicolon? || current_token.trivia_newline
+    if end_token? || kind.op_rparen? || kind.op_comma? ||
+       kind.op_eq_gt? || current_token.trivia_newline
       right = AST::Nop.new
     else
       right = parse_or
@@ -147,8 +156,8 @@ class Larimar::Parser
         right = parse_mul_or_div
 
         left = AST::Call.new left, operator, right
-      # when .number?
-      # TODO: stuff
+        # when .number?
+        # TODO: stuff
       else
         return left
       end
@@ -182,6 +191,10 @@ class Larimar::Parser
 
   def parse_atomic : AST::Node
     case current_token.kind
+    when .op_lparen?
+      parse_parenthesized_expression
+    when .op_at_lsquare?
+      parse_annotation
     when .number?
       current_token_as(AST::NumberLiteral)
     when .char?
@@ -222,6 +235,12 @@ class Larimar::Parser
       parse_class_def
     when .kw_def?
       parse_def
+    when .kw_require?
+      parse_require
+    when .kw_annotation?
+      parse_annotation_def
+    when .kw_alias?
+      parse_alias
     when .vt_skipped?
       current_token_as(AST::Error)
     when .eof?
@@ -232,6 +251,68 @@ class Larimar::Parser
       next_token
       node
     end
+  end
+
+  def parse_parenthesized_expression : AST::Node
+    lparen = consume(:OP_LPAREN)
+    if current_token.kind.op_rparen?
+      rparen = consume(:OP_RPAREN)
+      return AST::Parenthesis.new(lparen, AST::Nop.new, rparen)
+    end
+
+    expressions = [] of AST::Node
+    rparen = Token.new(:VT_MISSING, 0, 0, false)
+
+    while true
+      expressions << parse_expression
+
+      if !current_token.trivia_newline || current_token.kind.eof?
+        rparen = consume(:OP_RPAREN)
+        break
+      end
+    end
+
+    if current_token.kind.op_lparen?
+      add_error("parenthesized expressions cannot immediately follow")
+    end
+
+    AST::Parenthesis.new(
+      lparen, AST::Expressions.new(expressions), rparen
+    )
+  end
+
+  def parse_require : AST::Node
+    require_token = consume(:KW_REQUIRE)
+    require_str = consume(:STRING)
+
+    AST::Require.new(require_token, require_str)
+  end
+
+  def parse_annotation_def : AST::Node
+    annotation_token = consume(:KW_ANNOTATION)
+    name = parse_path
+    annotation_end = consume(:KW_END)
+
+    AST::AnnotationDef.new(annotation_token, name, annotation_end)
+  end
+
+  def parse_annotation : AST::Node
+    at_lsquare_token = consume(:OP_AT_LSQUARE)
+    name = parse_path
+    rsquare_token = consume(:OP_RSQUARE)
+
+    # TODO: stuff
+
+    AST::Annotation.new(at_lsquare_token, name, rsquare_token)
+  end
+
+  def parse_alias : AST::Node
+    alias_token = consume(:KW_ALIAS)
+    name = parse_path
+    equals_token = consume(:OP_EQ)
+    value = parse_bare_proc_type
+
+    AST::Alias.new(alias_token, name, equals_token, value)
   end
 
   def parse_begin : AST::Node
@@ -308,7 +389,7 @@ class Larimar::Parser
     :OP_AMP_PLUS, :OP_AMP_MINUS, :OP_AMP_STAR, :OP_AMP_STAR_STAR,
   ] of TokenKind
 
-  def parse_def(abstract_token : Token?  = nil) : AST::Node
+  def parse_def(abstract_token : Token? = nil) : AST::Node
     def_token = consume(:KW_DEF)
 
     if current_token.kind.const? || current_token.kind.op_colon_colon?

@@ -99,7 +99,7 @@ class Larimar::Parser
         case current_char
         when ' ', '\t', '\r'
           next_char
-        when '\n'
+        when '\n', ';'
           trivia_newline = true
           next_char
         when '#'
@@ -309,9 +309,9 @@ class Larimar::Parser
       when '?'
         next_char
         new_token(:OP_QUESTION)
-      when ';'
-        next_char
-        new_token(:OP_SEMICOLON)
+      # when ';'
+      #   next_char
+      #   new_token(:OP_SEMICOLON)
       when ':'
         if peek_next_char == ':'
           next_char

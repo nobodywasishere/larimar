@@ -173,7 +173,7 @@ class Larimar::Parser::Controller < Larimar::Controller
 
   def self.generate_diagnostics(document : Document)
     diagnostics = [] of LSProtocol::Diagnostic
-    errors = document.lex_errors
+    errors = document.lex_errors + document.parse_errors
 
     each_token_with_pos(document) do |doc_idx, token, position|
       if errs = errors.select { |e| doc_idx + token.start <= e.pos <= (doc_idx + token.length) }
@@ -215,7 +215,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     )
 
     document.mutex.synchronize do
-      Larimar::Parser::Lexer.lex_full(document)
+      Larimar::Parser.parse_full(document)
       self.class.generate_semantic_tokens(document)
       self.class.generate_diagnostics(document)
 
@@ -256,7 +256,7 @@ class Larimar::Parser::Controller < Larimar::Controller
         end
       end
 
-      Larimar::Parser::Lexer.lex_full(document)
+      Larimar::Parser.parse_full(document)
       self.class.generate_semantic_tokens(document)
       self.class.generate_diagnostics(document)
 

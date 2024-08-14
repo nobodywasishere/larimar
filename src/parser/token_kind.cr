@@ -82,7 +82,7 @@ class Larimar::Parser
     OP_SLASH_EQ                 # /=
     OP_COLON                    # :
     OP_COLON_COLON              # ::
-    OP_SEMICOLON                # ;
+    # OP_SEMICOLON                # ;
     OP_LT                       # <
     OP_LT_LT                    # <<
     OP_LT_LT_EQ                 # <<=

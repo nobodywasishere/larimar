@@ -2,7 +2,6 @@ CRYSTAL_FILES := $(shell find src -type f -name '*.cr')
 
 .PHONY: larimar
 larimar: ./bin/larimar
-	./bin/larimar
 
 .PHONY: prompt
 prompt: ./bin/prompt

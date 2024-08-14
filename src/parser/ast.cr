@@ -22,6 +22,15 @@ class Larimar::Parser
       end
     end
 
+    class Parenthesis < Node
+      getter lparen_token : Token
+      getter expressions : Node
+      getter rparen_token : Token
+
+      def initialize(@lparen_token, @expressions, @rparen_token)
+      end
+    end
+
     class Begin < Node
       getter begin_token : Token
       getter children : Array(Node)?
@@ -261,6 +270,42 @@ class Larimar::Parser
       getter last_type : Node
 
       def initialize(@types, @last_type)
+      end
+    end
+
+    class Require < Node
+      getter require_token : Token
+      getter require_str : Token
+
+      def initialize(@require_token, @require_str)
+      end
+    end
+
+    class AnnotationDef < Node
+      getter annotation_token : Token
+      getter name : Node
+      getter annotation_end : Token
+
+      def initialize(@annotation_token, @name, @annotation_end)
+      end
+    end
+
+    class Annotation < Node
+      getter at_lsquare_token : Token
+      getter name : Node
+      getter rsquare_token : Token
+
+      def initialize(@at_lsquare_token, @name, @rsquare_token)
+      end
+    end
+
+    class Alias < Node
+      getter alias_token : Token
+      getter name : Node
+      getter equals_token : Token
+      getter value : Node
+
+      def initialize(@alias_token, @name, @equals_token, @value)
       end
     end
   end
