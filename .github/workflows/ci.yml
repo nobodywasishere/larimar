@@ -10,5 +10,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Install Crystal
         uses: crystal-lang/install-crystal@v1
+      - name: Install Shards
+        run: shards install
       - name: Run tests
         run: crystal spec
