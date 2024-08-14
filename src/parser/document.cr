@@ -13,6 +13,8 @@ class Larimar::Parser
     property semantic_tokens : Array(SemanticTokensVisitor::SemanticToken) = Array(SemanticTokensVisitor::SemanticToken).new
     property lex_errors : Array(Lexer::LexerError) = Array(Lexer::LexerError).new
     property diagnostics : Array(LSProtocol::Diagnostic) = Array(LSProtocol::Diagnostic).new
+    property ast : AST::Node = AST::Nop.new
+    property parse_errors : Array(ParserError) = Array(ParserError).new
 
     def initialize(document : String, version : Int32 = 0)
       @chars = document.chars
