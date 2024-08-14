@@ -14,7 +14,7 @@ class Larimar::Parser
 
     document.seek_to(0)
 
-    parser = new(document)
+    parser = new(document.tokens)
 
     document.ast = parser.parse
     document.parse_errors = parser.errors

@@ -130,6 +130,8 @@ class Larimar::Parser::Controller < Larimar::Controller
     prev_position = LSProtocol::Position.new(line: 0, character: 0)
 
     each_token_with_pos(document) do |doc_idx, token, position|
+      next if token.length == 0
+
       line_diff = position.line - prev_position.line
       if line_diff > 0
         colm_diff = position.character
@@ -247,11 +249,9 @@ class Larimar::Parser::Controller < Larimar::Controller
         case change
         when LSProtocol::TextDocumentContentChangeWholeDocument
           document.update_whole(change.text, version: params.text_document.version)
-
           # Larimar::Parser::Lexer.lex_full(document)
         when LSProtocol::TextDocumentContentChangePartial
           document.update_partial(change.range, change.text, version: params.text_document.version)
-
           # Larimar::Parser::Lexer.lex_partial(document, change.range, change.text.size)
         end
       end

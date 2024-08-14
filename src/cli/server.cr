@@ -1,4 +1,4 @@
-require "./larimar"
+require "../larimar"
 
 server = Larimar::Server.new(STDIN, STDOUT)
 

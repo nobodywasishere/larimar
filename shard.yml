@@ -10,7 +10,9 @@ dependencies:
 
 targets:
   larimar:
-    main: src/cli.cr
+    main: src/cli/server.cr
+  prompt:
+    main: src/cli/prompt.cr
 
 crystal: ">= 1.13.1"
 
