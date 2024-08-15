@@ -34,6 +34,7 @@ server = HTTP::Server.new do |context|
     context.response.content_type = "text/html; charset=utf-8"
     context.response.print html
   when {"POST", "/parse"}
+    puts "#{request.method} #{request.path}: parsing source"
     src = request.form_params["src"]
 
     document = Larimar::Parser::Document.new(src)

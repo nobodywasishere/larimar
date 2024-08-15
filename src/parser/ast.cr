@@ -366,6 +366,27 @@ class Larimar::Parser
       end
     end
 
+    class If < Node
+      getter if_token : Token
+      getter condition : Node
+      getter expressions : Node
+      getter elsif_nodes : Array(Node)?
+      getter else_node : Node?
+      getter end_token : Token
+
+      def initialize(@if_token, @condition, @expressions, @elsif_nodes, @else_node, @end_token)
+      end
+    end
+
+    class Elsif < Node
+      getter elsif_token : Token
+      getter condition : Node
+      getter expressions : Node
+
+      def initialize(@elsif_token, @condition, @expressions)
+      end
+    end
+
     class Else < Node
       getter else_token : Token
       getter expressions : Node

@@ -17,6 +17,11 @@ class Larimar::Parser
     parser = new(document.tokens)
 
     document.ast = parser.parse
+
+    if parser.@doc_idx < document.@chars.size - 1
+      parser.add_error("remaining source code not parsed")
+    end
+
     document.parse_errors = parser.errors
   end
 
@@ -158,10 +163,6 @@ class Larimar::Parser
         next_token
 
         right = parse_mul_or_div
-        if right.is_a?(AST::Nop)
-          add_error("expecting expression")
-        end
-
         left = AST::Call.new left, operator, right
         # when .number?
         # TODO: stuff
@@ -263,6 +264,8 @@ class Larimar::Parser
       parse_case
     when .kw_select?
       parse_select
+    when .kw_if?
+      parse_if
     when .vt_skipped?
       current_token_as(AST::Error)
     when .eof?
@@ -271,6 +274,36 @@ class Larimar::Parser
       add_error("unhandled parsing for token #{current_token.kind}")
       current_token_as(AST::Error)
     end
+  end
+
+  def parse_if : AST::Node
+    if_token = consume(:KW_IF)
+    condition = parse_op_assign_no_control # allow_suffix: false
+    expressions = parse_expressions
+
+    elsif_nodes = Array(AST::Node).new
+    else_node = nil
+
+    while true
+      case current_token.kind
+      when .kw_elsif?
+        elsif_token = consume(:KW_ELSIF)
+        elsif_condition = parse_op_assign_no_control # allow_suffix: false
+        elsif_expressions = parse_expressions
+
+        elsif_nodes << AST::Elsif.new(elsif_token, elsif_condition, elsif_expressions)
+      when .kw_else?
+        else_token = consume(:KW_ELSE)
+        else_expressions = parse_expressions
+
+        else_node = AST::Else.new(else_token, else_expressions)
+      else
+        end_token = consume(:KW_END)
+        break
+      end
+    end
+
+    AST::If.new(if_token, condition, expressions, elsif_nodes, else_node, end_token)
   end
 
   def parse_parenthesized_expression : AST::Node
@@ -457,7 +490,7 @@ class Larimar::Parser
           # Added to this parser over the stdlib one as this happens
           # often when writing case statements
           case current_token.kind
-          when .kw_when?, .kw_in?, .kw_end?, .kw_then?
+          when .kw_when?, .kw_in?, .kw_end?, .kw_then?, .eof?
             if exhaustive
               add_error("empty 'in' condition")
             else
@@ -471,7 +504,7 @@ class Larimar::Parser
 
           last_condition = parse_when_expression
 
-          if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline
+          if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline || current_token.kind.eof?
             break
           end
 
@@ -521,7 +554,7 @@ class Larimar::Parser
           # Added to this parser over the stdlib one as this happens
           # often when writing case statements
           case current_token.kind
-          when .kw_when?, .kw_in?, .kw_end?, .kw_then?
+          when .kw_when?, .kw_in?, .kw_end?, .kw_then?, .eof?
             add_error("empty 'when' condition")
 
             then_token = consume?(:KW_THEN)
@@ -534,7 +567,7 @@ class Larimar::Parser
             add_error("invalid select when expression: must be an assignment or call")
           end
 
-          if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline
+          if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline || current_token.kind.eof?
             break
           end
 
