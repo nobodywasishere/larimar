@@ -43,6 +43,12 @@ server = HTTP::Server.new do |context|
     end
 
     result = String.build do |str|
+      str << <<-HTML
+      <table>
+        <tr style="vertical-align: top;">
+          <td style="width: 300vw;">
+      HTML
+
       str << "<p>" << elapsed_time << "</p>"
 
       if document.lex_errors.size > 0
@@ -65,9 +71,17 @@ server = HTTP::Server.new do |context|
         str << "</ul>"
       end
 
+      str << "</td><td style=\"width: 300vw;\">"
+
       str << "<pre><code>\n"
       str << `echo '#{document.ast.to_json}' | jq`
       str << "\n</code></pre>"
+
+      str << <<-HTML
+          </td>
+        </tr>
+      </table>
+      HTML
     end
 
     context.response.content_type = "text/html; charset=utf-8"

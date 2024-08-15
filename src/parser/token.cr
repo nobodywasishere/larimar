@@ -18,5 +18,9 @@ class Larimar::Parser
     def text_length : Int32
       length - start
     end
+
+    def skipped
+      Token.new(:VT_SKIPPED, start, length, trivia_newline)
+    end
   end
 end

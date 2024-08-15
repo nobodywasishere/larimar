@@ -186,10 +186,97 @@ class Larimar::Parser
       end
     end
 
-    class Self < Node
+    class EnumDef < Node
+      getter enum_token : Token
+      getter name : Node
+      getter colon : Token?
+      getter base_type : Node?
+      getter members : Array(Node)
+      getter end_token : Token
+
+      def initialize(@enum_token, @name, @colon, @base_type, @members, @end_token)
+      end
+    end
+
+    class Include < Node
       getter token : Token
+      getter name : Node
+
+      def initialize(@token, @name)
+      end
+    end
+
+    class Extend < Node
+      getter token : Token
+      getter name : Node
+
+      def initialize(@token, @name)
+      end
+    end
+
+    class Self < Node
+      getter token : Token?
 
       def initialize(@token, @parent = nil)
+      end
+    end
+
+    class Cast < Node
+      getter receiver : Node
+      getter dot : Token?
+      getter token : Token
+      getter lparen : Token?
+      getter type_name : Node
+      getter rparen : Token?
+
+      def initialize(@receiver, @dot, @token, @lparen, @type_name, @rparen)
+      end
+    end
+
+    class NilableCast < Node
+      getter receiver : Node
+      getter dot : Token?
+      getter token : Token
+      getter lparen : Token?
+      getter type_name : Node
+      getter rparen : Token?
+
+      def initialize(@receiver, @dot, @token, @lparen, @type_name, @rparen)
+      end
+    end
+
+    class IsA < Node
+      getter receiver : Node
+      getter dot : Token?
+      getter token : Token
+      getter lparen : Token?
+      getter type_name : Node
+      getter rparen : Token?
+
+      def initialize(@receiver, @dot, @token, @lparen, @type_name, @rparen)
+      end
+    end
+
+    class RespondsTo < Node
+      getter receiver : Node
+      getter dot : Token?
+      getter token : Token
+      getter lparen : Token?
+      getter method : Token
+      getter rparen : Token?
+
+      def initialize(@receiver, @dot, @token, @lparen, @method, @rparen)
+      end
+    end
+
+    class IsNil < Node
+      getter receiver : Node
+      getter dot : Token?
+      getter token : Token
+      getter lparen : Token?
+      getter rparen : Token?
+
+      def initialize(@receiver, @dot, @token, @lparen, @rparen)
       end
     end
 
@@ -228,6 +315,24 @@ class Larimar::Parser
 
       def self.new(obj : Node, name : Token, parent : Node? = nil)
         new(obj, nil, name, nil, [] of Node, nil, parent: parent)
+      end
+    end
+
+    class Arg < Node
+      getter name : Token
+      getter equals_token : Token?
+      getter value : Node?
+
+      def initialize(@name, @equals_token, @value)
+      end
+    end
+
+    class Assign < Node
+      getter name : Node
+      getter equals_token : Token
+      getter value : Node
+
+      def initialize(@name, @equals_token, @value)
       end
     end
 
@@ -287,6 +392,29 @@ class Larimar::Parser
         @name, @equals, @args, @return_colon, @return_type,
         @body, @end_token
       )
+      end
+    end
+
+    class Macro < Node
+      getter macro_token : Token
+      getter name : Token
+      getter equals : Token?
+      getter args : Array(Node)?
+      getter body : Node?
+      getter end_token : Token?
+
+      def initialize(
+        @macro_token, @name, @equals, @args,
+        @body, @end_token
+      )
+      end
+    end
+
+    class VisibilityModifier < Node
+      getter token : Token
+      getter value : Node
+
+      def initialize(@token, @value)
       end
     end
 
@@ -375,6 +503,17 @@ class Larimar::Parser
       getter end_token : Token
 
       def initialize(@if_token, @condition, @expressions, @elsif_nodes, @else_node, @end_token)
+      end
+    end
+
+    class Unless < Node
+      getter unless_token : Token
+      getter condition : Node
+      getter expressions : Node
+      getter else_node : Node?
+      getter end_token : Token
+
+      def initialize(@unless_token, @condition, @expressions, @else_node, @end_token)
       end
     end
 

@@ -9,12 +9,14 @@ class Larimar::Parser
   @tokens_idx = 0
   @doc_idx = 0
 
+  @var_scopes = Array(Set(String)).new
+
   def self.parse_full(document : Document) : Nil
     Lexer.lex_full(document)
 
     document.seek_to(0)
 
-    parser = new(document.tokens)
+    parser = new(document)
 
     document.ast = parser.parse
 
@@ -25,7 +27,8 @@ class Larimar::Parser
     document.parse_errors = parser.errors
   end
 
-  def initialize(@tokens)
+  def initialize(@document : Document)
+    @tokens = @document.tokens
     @doc_idx = tokens[0]?.try(&.start) || 0
   end
 
@@ -250,10 +253,18 @@ class Larimar::Parser
         add_error("abstract can only be used on class, struct, and def")
         AST::Error.new(abstract_token)
       end
+    when .kw_private?, .kw_protected?
+      parse_visibility_modifier
     when .kw_class?, .kw_struct?
       parse_class_def
+    when .kw_module?
+      parse_module_def
+    when .kw_enum?
+      parse_enum_def
     when .kw_def?
       parse_def
+    when .kw_macro?
+      parse_macro
     when .kw_require?
       parse_require
     when .kw_annotation?
@@ -266,14 +277,122 @@ class Larimar::Parser
       parse_select
     when .kw_if?
       parse_if
+    when .kw_unless?
+      parse_unless
+    when .kw_include?
+      parse_include
+    when .kw_extend?
+      parse_extend
+    when .ident?
+      parse_var_or_call
     when .vt_skipped?
       current_token_as(AST::Error)
     when .eof?
       AST::Nop.new
+    when .kw_end?
+      token = Token.new(:VT_MISSING, 0, 0, false)
+      node = AST::Error.new(token)
+      add_error("unexpected 'end'")
+      node
     else
       add_error("unhandled parsing for token #{current_token.kind}")
       current_token_as(AST::Error)
     end
+  end
+
+  def parse_visibility_modifier : AST::Node
+    token = consume(:KW_PRIVATE, :KW_PROTECTED)
+    value = parse_op_assign
+
+    AST::VisibilityModifier.new(token, value)
+  end
+
+  def parse_var_or_call : AST::Node
+    case current_token.kind
+    when .kw_is_a_question?
+      obj = AST::Self.new(nil)
+      return parse_is_a(obj)
+    when .kw_as?
+      obj = AST::Self.new(nil)
+      return parse_as(obj)
+    when .kw_as_question?
+      obj = AST::Self.new(nil)
+      return parse_as?(obj)
+    when .kw_responds_to_question?
+      obj = AST::Self.new(nil)
+      return parse_responds_to(obj)
+    when .kw_nil_question?
+      # TODO: unless in macro exp
+      obj = AST::Self.new(nil)
+      return parse_nil?(obj)
+    end
+
+    name = consume(:IDENT)
+
+    AST::Var.new(name)
+  end
+
+  def parse_is_a(atomic : AST::Node) : AST::Node
+    token = consume(:KW_IS_A_QUESTION)
+    lparen = consume?(:OP_LPAREN)
+    if lparen
+      type_name = parse_bare_proc_type
+      rparen = consume(:OP_RPAREN)
+    else
+      type_name = parse_union_type
+    end
+
+    AST::IsA.new(atomic, nil, token, lparen, type_name, rparen)
+  end
+
+  def parse_as(atomic : AST::Node) : AST::Node
+    token = consume(:KW_AS)
+    lparen = consume?(:OP_LPAREN)
+    if lparen
+      type_name = parse_bare_proc_type
+      rparen = consume(:OP_RPAREN)
+    else
+      type_name = parse_union_type
+    end
+
+    AST::Cast.new(atomic, nil, token, lparen, type_name, rparen)
+  end
+
+  def parse_as?(atomic : AST::Node) : AST::Node
+    token = consume(:KW_AS_QUESTION)
+    lparen = consume?(:OP_LPAREN)
+    if lparen
+      type_name = parse_bare_proc_type
+      rparen = consume(:OP_RPAREN)
+    else
+      type_name = parse_union_type
+    end
+
+    AST::NilableCast.new(atomic, nil, token, lparen, type_name, rparen)
+  end
+
+  def parse_responds_to(atomic : AST::Node) : AST::Node
+    token = consume(:KW_RESPONDS_TO_QUESTION)
+    lparen = consume?(:OP_LPAREN)
+
+    type_name = consume(:SYMBOL)
+
+    if lparen
+      rparen = consume(:OP_RPAREN)
+    end
+
+    AST::RespondsTo.new(atomic, nil, token, lparen, type_name, rparen)
+  end
+
+  def parse_nil?(atomic : AST::Node) : AST::Node
+    token = consume(:KW_AS_QUESTION)
+    lparen = consume?(:OP_LPAREN)
+
+    if lparen
+      rparen = consume(:OP_RPAREN)
+    end
+
+    AST::IsNil.new(atomic, nil, token, lparen, rparen)
   end
 
   def parse_if : AST::Node
@@ -304,6 +423,24 @@ class Larimar::Parser
     end
 
     AST::If.new(if_token, condition, expressions, elsif_nodes, else_node, end_token)
+  end
+
+  def parse_unless : AST::Node
+    unless_token = consume(:KW_UNLESS)
+    condition = parse_op_assign_no_control # allow_suffix: false
+    expressions = parse_expressions
+    else_node = nil
+
+    if current_token.kind.kw_else?
+      else_token = consume(:KW_ELSE)
+      else_expressions = parse_expressions
+
+      else_node = AST::Else.new(else_token, else_expressions)
+    end
+
+    end_token = consume(:KW_END)
+
+    AST::Unless.new(unless_token, condition, expressions, else_node, end_token)
   end
 
   def parse_parenthesized_expression : AST::Node
@@ -685,6 +822,120 @@ class Larimar::Parser
     AST::ModuleDef.new(module_token, name, body, end_token)
   end
 
+  def parse_include : AST::Node
+    token = consume(:KW_INCLUDE)
+
+    if current_token.kind.kw_self?
+      self_token = consume(:KW_SELF)
+      name = AST::Self.new(self_token)
+    else
+      # parse_generic
+      name = parse_path
+    end
+
+    AST::Include.new(token, name)
+  end
+
+  def parse_extend : AST::Node
+    token = consume(:KW_EXTEND)
+
+    if current_token.kind.kw_self?
+      self_token = consume(:KW_SELF)
+      name = AST::Self.new(self_token)
+    else
+      name = parse_path # parse_generic
+    end
+
+    AST::Extend.new(token, name)
+  end
+
+  def parse_enum_def : AST::Node
+    enum_token = consume(:KW_ENUM)
+    name = parse_path
+
+    colon = consume?(:OP_COLON)
+    if colon
+      base_type = parse_bare_proc_type
+    end
+
+    members = parse_enum_body_expressions
+
+    end_token = consume(:KW_END)
+
+    AST::EnumDef.new(enum_token, name, colon, base_type, members, end_token)
+  end
+
+  def parse_enum_body_expressions : Array(AST::Node)
+    members = [] of AST::Node
+
+    while true
+      case current_token.kind
+      when .const?
+        const_name = consume(:CONST)
+        equals_token = consume?(:OP_EQ)
+        if equals_token
+          const_value = parse_logical_or
+        end
+
+        unless current_token.trivia_newline || current_token.kind.eof?
+          add_error("expecting ';', 'end', or newline after enum member")
+        end
+
+        members << AST::Arg.new(const_name, equals_token, const_value)
+      when .kw_private?, .kw_protected?
+        visibility_token = consume(:KW_PRIVATE, :KW_PROTECTED)
+
+        case current_token.kind
+        when .kw_def?
+          def_node = parse_def
+
+          if visibility_token
+            members << AST::VisibilityModifier.new(visibility_token, def_node)
+          else
+            members << def_node
+          end
+        when .kw_macro?
+          macro_node = parse_macro
+
+          if visibility_token
+            members << AST::VisibilityModifier.new(visibility_token, macro_node)
+          else
+            members << macro_node
+          end
+        else
+          add_error("expecting method or macro def after visibility modifier")
+          members << current_token_as(AST::Error)
+        end
+      when .kw_def?
+        members << parse_def
+      when .kw_macro?
+        members << parse_macro
+      when .class_var?
+        class_var = current_token_as(AST::ClassVar)
+        equals_token = consume?(:OP_EQ)
+
+        if equals_token
+          value = parse_op_assign
+          members << AST::Assign.new(class_var, equals_token, value)
+        else
+          add_error("@@class_variables must be assigned inside enums")
+          members << AST::Error.new(class_var.token)
+        end
+        # when .op_lcurly_lcurly?
+        # when .op_lcurly_percent?
+      when .op_at_lsquare?
+        members << parse_annotation
+      when .kw_end?, .eof?
+        break
+      else
+        add_error("expecting enum member or method/macro definition")
+        members << current_token_as(AST::Error)
+      end
+    end
+
+    members
+  end
+
   # IDENT CONST ` << < <= == === != =~ !~ >> > >= + - * / // ! ~ % & | ^ ** [] []? []= <=> &+ &- &* &**
   DefOrMacroNameKinds = [
     :IDENT, :CONST, :OP_GRAVE,
@@ -693,32 +944,76 @@ class Larimar::Parser
     :OP_SLASH_SLASH, :OP_BANG, :OP_TILDE, :OP_PERCENT, :OP_AMP, :OP_BAR, :OP_CARET, :OP_STAR_STAR,
     :OP_LSQUARE_RSQUARE, :OP_LSQUARE_RSQUARE_EQ, :OP_LSQUARE_RSQUARE_QUESTION, :OP_LT_EQ_GT,
     :OP_AMP_PLUS, :OP_AMP_MINUS, :OP_AMP_STAR, :OP_AMP_STAR_STAR,
+    :KW_IS_A_QUESTION, :KW_AS, :KW_AS_QUESTION, :KW_RESPONDS_TO_QUESTION, :KW_NIL_QUESTION,
+  ] of TokenKind
+
+  PseudoMethodNames = [
+    :KW_IS_A_QUESTION, :KW_AS, :KW_AS_QUESTION,
+    :KW_RESPONDS_TO_QUESTION, :KW_NIL_QUESTION,
   ] of TokenKind
 
   def parse_def(abstract_token : Token? = nil) : AST::Node
     def_token = consume(:KW_DEF)
 
-    if current_token.kind.const? || current_token.kind.op_colon_colon?
-      receiver = parse_path
-      receiver_dot = consume(:OP_PERIOD)
+    with_isolated_var_scope do
+      if current_token.kind.const? || current_token.kind.op_colon_colon?
+        receiver = parse_path
+        receiver_dot = consume(:OP_PERIOD)
+      end
+
+      if PseudoMethodNames.includes?(current_token.kind)
+        add_error("this is a pseudo-method and can't be redefined")
+        name = consume(PseudoMethodNames).skipped
+      elsif current_token.kind.op_bang?
+        add_error("'!' is a pseudo-method and can't be redefined")
+        name = consume(:OP_BANG).skipped
+      else
+        name = consume(DefOrMacroNameKinds)
+      end
+
+      equals_token = consume?(:OP_EQ)
+
+      return_colon = consume?(:OP_COLON)
+      if return_colon
+        return_type = parse_bare_proc_type
+      end
+
+      if abstract_token.nil?
+        body = parse_expressions
+        end_token = consume(:KW_END)
+      end
+
+      return AST::Def.new(
+        abstract_token, def_token, receiver, receiver_dot, name, equals_token,
+        nil, return_colon, return_type, body, end_token
+      )
     end
+  end
 
-    name = consume(DefOrMacroNameKinds)
-    equals_token = consume?(:OP_EQ)
+  def parse_macro : AST::Node
+    macro_token = consume(:KW_MACRO)
 
-    return_colon = consume?(:OP_COLON)
-    if return_colon
-      return_type = parse_bare_proc_type
-    end
+    with_isolated_var_scope do
+      if PseudoMethodNames.includes?(current_token.kind)
+        add_error("this is a pseudo-method and can't be redefined")
+        name = consume(PseudoMethodNames).skipped
+      elsif current_token.kind.op_bang?
+        add_error("'!' is a pseudo-method and can't be redefined")
+        name = consume(:OP_BANG).skipped
+      else
+        name = consume(DefOrMacroNameKinds)
+      end
 
-    if abstract_token.nil?
+      equals_token = consume?(:OP_EQ)
+
+      # TODO: parse_macro_body
+
       end_token = consume(:KW_END)
-    end
 
-    AST::Def.new(
-      abstract_token, def_token, receiver, receiver_dot, name, equals_token,
-      nil, return_colon, return_type, nil, end_token
-    )
+      AST::Macro.new(
+        macro_token, name, equals_token, nil, nil, end_token
+      )
+    end
   end
 
   def parse_path : AST::Node
@@ -773,6 +1068,21 @@ class Larimar::Parser
       add_error("void value expression")
       current_token_as(AST::Error)
     end
+  end
+
+  def with_isolated_var_scope(&)
+    @var_scopes.push(Set(String).new)
+    yield
+  ensure
+    @var_scopes.pop
+  end
+
+  def with_lexical_var_scope(&)
+    current_scope = @var_scopes.last.dup
+    @var_scopes.push(current_scope)
+    yield
+  ensure
+    @var_scopes.pop
   end
 
   # Helper methods
