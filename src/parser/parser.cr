@@ -158,6 +158,9 @@ class Larimar::Parser
         next_token
 
         right = parse_mul_or_div
+        if right.is_a?(AST::Nop)
+          add_error("expecting expression")
+        end
 
         left = AST::Call.new left, operator, right
         # when .number?
@@ -801,7 +804,7 @@ class Larimar::Parser
 
   macro current_token_as(name)
     node = {{ name }}.new(current_token)
-    next_token
+    next_token unless current_token.kind.eof?
     node
   end
 end

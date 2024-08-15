@@ -13,6 +13,8 @@ targets:
     main: src/cli/server.cr
   prompt:
     main: src/cli/prompt.cr
+  ast_web:
+    main: src/cli/ast_web.cr
 
 crystal: ">= 1.13.1"
 
