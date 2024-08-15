@@ -59,6 +59,10 @@ class Larimar::Parser
     parse_question_colon
   end
 
+  def parse_op_assign_no_control : AST::Node
+    check_void_expression_keyword || parse_op_assign
+  end
+
   def parse_question_colon : AST::Node
     cond = parse_range
 
@@ -195,6 +199,13 @@ class Larimar::Parser
       parse_parenthesized_expression
     when .op_at_lsquare?
       parse_annotation
+    when .op_lsquare_rsquare?
+      parse_empty_array_literal
+    when .op_lsquare?
+      parse_array_literal
+    when .op_colon_colon?
+      # parse_generic_or_global_call
+      parse_path
     when .number?
       current_token_as(AST::NumberLiteral)
     when .char?
@@ -214,6 +225,10 @@ class Larimar::Parser
       current_token_as(AST::BoolLiteral)
     when .kw_false?
       current_token_as(AST::BoolLiteral)
+    when .instance_var?
+      parse_instance_var
+    when .class_var?
+      parse_class_var
     when .kw_with?
       parse_with
     when .kw_yield?
@@ -241,15 +256,17 @@ class Larimar::Parser
       parse_annotation_def
     when .kw_alias?
       parse_alias
+    when .kw_case?
+      parse_case
+    when .kw_select?
+      parse_select
     when .vt_skipped?
       current_token_as(AST::Error)
     when .eof?
       AST::Nop.new
     else
       add_error("unhandled parsing for token #{current_token.kind}")
-      node = AST::Error.new(current_token)
-      next_token
-      node
+      current_token_as(AST::Error)
     end
   end
 
@@ -313,6 +330,259 @@ class Larimar::Parser
     value = parse_bare_proc_type
 
     AST::Alias.new(alias_token, name, equals_token, value)
+  end
+
+  def parse_empty_array_literal : AST::Node
+    lsquare_rsquare_token = consume(:OP_LSQUARE_RSQUARE)
+    of_token = consume(:KW_OF)
+    type_name = parse_bare_proc_type
+
+    AST::ArrayLiteral.new(
+      left_bracket: lsquare_rsquare_token,
+      elements: nil,
+      last_element: nil,
+      right_bracket: nil,
+      of_token: of_token,
+      type_name: type_name
+    )
+  end
+
+  def parse_array_literal : AST::Node
+    lsquare_token = consume(:OP_LSQUARE)
+
+    elements = Array(Tuple(AST::Node, Token)).new
+
+    until current_token.kind.op_rsquare?
+      # TODO: op_star/splat handling
+      last_element = parse_op_assign_no_control
+
+      if current_token.kind.op_comma? && !current_token.trivia_newline
+        comma_token = consume(:OP_COMMA)
+
+        elements << {last_element, comma_token}
+      else
+        rsquare_token = consume(:OP_RSQUARE)
+        break
+      end
+    end
+
+    of_token = consume?(:KW_OF)
+    if of_token
+      type_name = parse_bare_proc_type
+    end
+
+    AST::ArrayLiteral.new(
+      left_bracket: lsquare_token,
+      elements: elements,
+      last_element: last_element,
+      right_bracket: rsquare_token,
+      of_token: of_token,
+      type_name: type_name
+    )
+  end
+
+  def parse_instance_var : AST::Node
+    token = consume(:INSTANCE_VAR)
+    node = AST::InstanceVar.new(token)
+
+    if current_token.kind.op_colon?
+      node = parse_type_declaration(node)
+    end
+
+    node
+  end
+
+  def parse_class_var : AST::Node
+    token = consume(:CLASS_VAR)
+    node = AST::ClassVar.new(token)
+
+    if current_token.kind.op_colon?
+      node = parse_type_declaration(node)
+    end
+
+    node
+  end
+
+  def parse_type_declaration(node : AST::Node) : AST::Node
+    colon_token = consume(:OP_COLON)
+    type_name = parse_bare_proc_type
+
+    equals_token = consume?(:OP_EQ)
+    if equals_token
+      value = parse_op_assign_no_control
+    end
+
+    AST::TypeDeclaration.new(node, colon_token, type_name, equals_token, value)
+  end
+
+  def parse_case : AST::Node
+    case_token = consume(:KW_CASE)
+
+    case current_token.kind
+    when .kw_when?, .kw_else?, .kw_end?
+    else
+      condition = parse_op_assign_no_control
+    end
+
+    when_expressions = Array(AST::Node).new
+    end_token = Token.new(:VT_MISSING, 0, 0, false)
+    exhaustive = nil
+
+    while true
+      case current_token.kind
+      when .kw_when?, .kw_in?
+        when_token = consume(:KW_WHEN, :KW_IN)
+
+        if exhaustive.nil?
+          exhaustive = current_token.kind.kw_in?
+
+          if exhaustive && condition.nil?
+            add_error("exhaustive case (case ... in) requires a case expression (case exp; in ..)")
+          end
+        elsif exhaustive && current_token.kind.kw_when?
+          add_error("expected 'in', not 'when'")
+        elsif !exhaustive && current_token.kind.kw_in?
+          add_error("expected 'when', not 'in'")
+        end
+
+        # TODO: stuff
+        # if condition.is_a?(AST::TupleLiteral)
+        when_conditions = Array(Tuple(AST::Node, Token)).new
+        then_token = nil
+
+        while true
+          # Added to this parser over the stdlib one as this happens
+          # often when writing case statements
+          case current_token.kind
+          when .kw_when?, .kw_in?, .kw_end?, .kw_then?
+            if exhaustive
+              add_error("empty 'in' condition")
+            else
+              add_error("empty 'when' condition")
+            end
+
+            then_token = consume?(:KW_THEN)
+            last_condition = AST::Nop.new
+            break
+          end
+
+          last_condition = parse_when_expression
+
+          if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline
+            break
+          end
+
+          comma = consume(:OP_COMMA)
+          when_conditions << {last_condition, comma}
+        end
+
+        when_body = parse_expressions
+        when_expressions << AST::When.new(when_token, when_conditions, last_condition, then_token, when_body)
+      when .kw_else?
+        else_token = consume(:KW_ELSE)
+        else_expressions = parse_expressions
+
+        else_node = AST::Else.new(else_token, else_expressions)
+      when .kw_end?
+        end_token = consume(:KW_END)
+        break
+      else
+        add_error("expecting when, else, or end")
+        when_expressions << current_token_as(AST::Error)
+        break
+      end
+    end
+
+    AST::Case.new(case_token, condition, when_expressions, else_node, end_token)
+  end
+
+  def parse_select : AST::Node
+    select_token = consume(:KW_SELECT)
+
+    when_expressions = Array(AST::Node).new
+    else_node = nil
+    end_token = Token.new(:VT_MISSING, 0, 0, false)
+
+    while true
+      case current_token.kind
+      when .kw_when?, .kw_in?
+        if current_token.kind.kw_in?
+          add_error("select only supports 'in' statements")
+        end
+
+        when_token = consume(:KW_WHEN, :KW_IN)
+        when_conditions = Array(Tuple(AST::Node, Token)).new
+        then_token = nil
+
+        while true
+          # Added to this parser over the stdlib one as this happens
+          # often when writing case statements
+          case current_token.kind
+          when .kw_when?, .kw_in?, .kw_end?, .kw_then?
+            add_error("empty 'when' condition")
+
+            then_token = consume?(:KW_THEN)
+            last_condition = AST::Nop.new
+            break
+          end
+
+          last_condition = parse_op_assign_no_control
+          unless valid_select_when?(last_condition)
+            add_error("invalid select when expression: must be an assignment or call")
+          end
+
+          if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline
+            break
+          end
+
+          comma = consume(:OP_COMMA)
+          when_conditions << {last_condition, comma}
+        end
+
+        when_body = parse_expressions
+        when_expressions << AST::When.new(when_token, when_conditions, last_condition, then_token, when_body)
+      when .kw_else?
+        if when_expressions.size == 0
+          add_error("expecting when expression")
+        end
+
+        else_token = consume(:KW_ELSE)
+        else_expressions = parse_expressions
+
+        else_node = AST::Else.new(else_token, else_expressions)
+      when .kw_end?
+        if when_expressions.size == 0 && else_node.nil?
+          add_error("expecting when expression")
+        end
+
+        end_token = consume(:KW_END)
+        break
+      else
+        add_error("expecting when, else, or end")
+        when_expressions << current_token_as(AST::Error)
+        break
+      end
+    end
+
+    AST::Select.new(select_token, when_expressions, else_node, end_token)
+  end
+
+  def parse_when_expression : AST::Node
+    # TODO: stuff
+    parse_op_assign_no_control
+  end
+
+  def valid_select_when?(node : AST::Node)
+    # TODO: stuff
+    # case node
+    # when AST::Assign
+    #   node.value.is_a?(AST::Call)
+    # when AST::Call
+    #   true
+    # else
+    #   false
+    # end
+    true
   end
 
   def parse_begin : AST::Node
@@ -461,6 +731,14 @@ class Larimar::Parser
     parse_path
   end
 
+  def check_void_expression_keyword : AST::Node?
+    case current_token.kind
+    when .kw_break?, .kw_next?, .kw_return?
+      add_error("void value expression")
+      current_token_as(AST::Error)
+    end
+  end
+
   # Helper methods
 
   def consume?(*kinds : TokenKind) : Token?
@@ -473,10 +751,10 @@ class Larimar::Parser
   end
 
   def consume(*kinds : TokenKind) : Token
-    consume(kinds)
+    consume(kinds.to_a)
   end
 
-  def consume(kinds : Tuple(TokenKind) | Array(TokenKind)) : Token
+  def consume(kinds : Array(TokenKind)) : Token
     if kinds.includes?(current_token.kind)
       token = current_token
       next_token
@@ -515,9 +793,9 @@ class Larimar::Parser
     end
   end
 
-  def add_error(message) : Nil
+  def add_error(message, location = @doc_idx) : Nil
     @errors << ParserError.new(
-      message, @doc_idx
+      message, location
     )
   end
 

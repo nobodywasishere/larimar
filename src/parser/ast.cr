@@ -86,13 +86,13 @@ class Larimar::Parser
       getter left_bracket : Token
       getter elements : Array(Tuple(Node, Token))?
       getter last_element : Node?
-      getter right_bracket : Token
-      getter of : Token?
-      getter type : Node
+      getter right_bracket : Token?
+      getter of_token : Token?
+      getter type_name : Node?
 
       def initialize(
         @left_bracket, @elements, @last_element, @right_bracket,
-        @of, @type, @parent = nil
+        @of_token, @type_name, @parent = nil
       )
       end
     end
@@ -121,9 +121,34 @@ class Larimar::Parser
     end
 
     class Var < Node
-      getter token : String
+      getter token : Token
 
       def initialize(@token, @parent = nil)
+      end
+    end
+
+    class InstanceVar < Node
+      getter token : Token
+
+      def initialize(@token, @parent = nil)
+      end
+    end
+
+    class ClassVar < Node
+      getter token : Token
+
+      def initialize(@token, @parent = nil)
+      end
+    end
+
+    class TypeDeclaration < Node
+      getter name : Node
+      getter colon_token : Token
+      getter type_name : Node
+      getter equals_token : Token?
+      getter value : Node?
+
+      def initialize(@name, @colon_token, @type_name, @equals_token, @value)
       end
     end
 
@@ -306,6 +331,46 @@ class Larimar::Parser
       getter value : Node
 
       def initialize(@alias_token, @name, @equals_token, @value)
+      end
+    end
+
+    class Case < Node
+      getter case_token : Token
+      getter condition : Node?
+      getter when_expressions : Array(Node)?
+      getter else_node : Else?
+      getter end_token : Token
+
+      def initialize(@case_token, @condition, @when_expressions, @else_node, @end_token)
+      end
+    end
+
+    class Select < Node
+      getter select_token : Token
+      getter when_expressions : Array(Node)?
+      getter else_node : Else?
+      getter end_token : Token
+
+      def initialize(@select_token, @when_expressions, @else_node, @end_token)
+      end
+    end
+
+    class When < Node
+      getter when_token : Token
+      getter when_conditions : Array(Tuple(Node, Token))
+      getter last_condition : Node
+      getter then_token : Token?
+      getter expressions : Node
+
+      def initialize(@when_token, @when_conditions, @last_condition, @then_token, @expressions)
+      end
+    end
+
+    class Else < Node
+      getter else_token : Token
+      getter expressions : Node
+
+      def initialize(@else_token, @expressions)
       end
     end
   end

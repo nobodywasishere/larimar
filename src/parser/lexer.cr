@@ -295,7 +295,7 @@ class Larimar::Parser
             next_char
             new_token(:OP_LSQUARE_RSQUARE_QUESTION)
           else
-            new_token(:OP_LSQUARE)
+            new_token(:OP_LSQUARE_RSQUARE)
           end
         else
           new_token(:OP_LSQUARE)
@@ -309,9 +309,9 @@ class Larimar::Parser
       when '?'
         next_char
         new_token(:OP_QUESTION)
-      # when ';'
-      #   next_char
-      #   new_token(:OP_SEMICOLON)
+        # when ';'
+        #   next_char
+        #   new_token(:OP_SEMICOLON)
       when ':'
         if peek_next_char == ':'
           next_char
