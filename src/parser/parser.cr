@@ -10,6 +10,7 @@ class Larimar::Parser
   @doc_idx = 0
 
   @var_scopes = [Set(String).new]
+  @parent_nodes = [:Nop] of AST::Node::ParentType
 
   def self.parse_full(document : Document) : Nil
     Lexer.lex_full(document)
@@ -196,7 +197,7 @@ class Larimar::Parser
     end
 
     loop do
-      if current_token.trivia_newline
+      if current_token.trivia_newline || current_token.trivia_semicolon
         break
       end
 
@@ -216,8 +217,8 @@ class Larimar::Parser
     next_token
 
     kind = current_token.kind
-    if end_token? || kind.op_rparen? || kind.op_comma? ||
-       kind.op_eq_gt? || current_token.trivia_newline
+    if end_token? || kind.op_rparen? || kind.op_comma? || kind.op_eq_gt? ||
+       current_token.trivia_newline || current_token.trivia_semicolon
       right = AST::Nop.new
     else
       right = parse_or
@@ -393,16 +394,27 @@ class Larimar::Parser
       parse_path
     when .vt_skipped?
       current_token_as(AST::Error)
-    when .eof?
-      AST::Nop.new
     when .kw_end?
-      token = Token.new(:VT_MISSING, 0, 0, false)
+      token = Token.new(:VT_MISSING)
       node = AST::Error.new(token)
       add_error("unexpected 'end'")
       node
     else
-      add_error("unhandled parsing for token #{current_token.kind}")
-      current_token_as(AST::Error)
+      case current_parent
+      when .array?
+        case current_token.kind
+        when .op_comma?, .op_rsquare?
+          add_error("incomplete array element expression")
+          return AST::Nop.new
+        end
+      end
+
+      if current_token.kind.eof?
+        AST::Nop.new
+      else
+        add_error("unhandled parsing for token #{current_token.kind}")
+        current_token_as(AST::Error)
+      end
     end
   end
 
@@ -570,12 +582,20 @@ class Larimar::Parser
     end
 
     expressions = [] of AST::Node
-    rparen = Token.new(:VT_MISSING, 0, 0, false)
+    rparen = Token.new(:VT_MISSING)
 
     while true
       expressions << parse_expression
 
-      if !current_token.trivia_newline || current_token.kind.eof?
+      if current_token.kind.op_rparen?
+        rparen = consume(:OP_RPAREN)
+        break
+      elsif current_token.trivia_newline ||
+            current_token.trivia_semicolon ||
+            current_token.kind.eof?
+        # Keep going
+      else
+        # TODO: better error handling
         rparen = consume(:OP_RPAREN)
         break
       end
@@ -626,8 +646,10 @@ class Larimar::Parser
 
   def parse_empty_array_literal : AST::Node
     lsquare_rsquare_token = consume(:OP_LSQUARE_RSQUARE)
-    of_token = consume(:KW_OF)
-    type_name = parse_bare_proc_type
+    of_token = consume(:KW_OF, msg: "for empty arrays use '[] of ElementType'")
+    if of_token.kind.kw_of?
+      type_name = parse_bare_proc_type
+    end
 
     AST::ArrayLiteral.new(
       left_bracket: lsquare_rsquare_token,
@@ -644,13 +666,12 @@ class Larimar::Parser
 
     elements = Array(Tuple(AST::Node, Token)).new
 
-    until current_token.kind.op_rsquare?
+    while true
       # TODO: op_star/splat handling
-      last_element = parse_op_assign_no_control
+      last_element = with_parent(:array) { parse_op_assign_no_control }
 
-      if current_token.kind.op_comma? && !current_token.trivia_newline
+      if current_token.kind.op_comma?
         comma_token = consume(:OP_COMMA)
-
         elements << {last_element, comma_token}
       else
         rsquare_token = consume(:OP_RSQUARE)
@@ -717,7 +738,7 @@ class Larimar::Parser
     end
 
     when_expressions = Array(AST::Node).new
-    end_token = Token.new(:VT_MISSING, 0, 0, false)
+    end_token = Token.new(:VT_MISSING)
     exhaustive = nil
 
     while true
@@ -760,7 +781,8 @@ class Larimar::Parser
 
           last_condition = parse_when_expression
 
-          if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline || current_token.kind.eof?
+          if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline ||
+             current_token.trivia_semicolon || current_token.kind.eof?
             break
           end
 
@@ -793,7 +815,7 @@ class Larimar::Parser
 
     when_expressions = Array(AST::Node).new
     else_node = nil
-    end_token = Token.new(:VT_MISSING, 0, 0, false)
+    end_token = Token.new(:VT_MISSING)
 
     while true
       case current_token.kind
@@ -823,7 +845,8 @@ class Larimar::Parser
             add_error("invalid select when expression: must be an assignment or call")
           end
 
-          if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline || current_token.kind.eof?
+          if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline ||
+             current_token.trivia_semicolon || current_token.kind.eof?
             break
           end
 
@@ -996,7 +1019,7 @@ class Larimar::Parser
           const_value = parse_logical_or
         end
 
-        unless current_token.trivia_newline || current_token.kind.eof?
+        unless current_token.trivia_newline || current_token.trivia_semicolon || current_token.kind.eof?
           add_error("expecting ';', 'end', or newline after enum member")
         end
 
@@ -1208,9 +1231,17 @@ class Larimar::Parser
     @var_scopes.pop
   end
 
+  def with_parent(node : AST::Node::ParentType, &) : AST::Node
+    @parent_nodes.push(node)
+
+    yield
+  ensure
+    @parent_nodes.pop
+  end
+
   # Helper methods
 
-  def consume?(*kinds : TokenKind) : Token?
+  def consume?(*kinds : TokenKind, msg : String? = nil) : Token?
     if kinds.includes?(current_token.kind)
       token = current_token
       next_token
@@ -1219,27 +1250,29 @@ class Larimar::Parser
     end
   end
 
-  def consume(*kinds : TokenKind) : Token
-    consume(kinds.to_a)
+  def consume(*kinds : TokenKind, msg : String? = nil) : Token
+    consume(kinds.to_a, msg: msg)
   end
 
-  def consume(kinds : Array(TokenKind)) : Token
+  def consume(kinds : Array(TokenKind), msg : String? = nil) : Token
     if kinds.includes?(current_token.kind)
       token = current_token
       next_token
 
       token
     else
-      add_error("expecting #{kinds.join(", ")}, but got #{current_token.kind}")
-      Token.new(:VT_MISSING, 0, 0, false)
+      msg ||= "expecting #{kinds.join(", ")}, but got #{current_token.kind}"
+      add_error(msg)
+      Token.new(:VT_MISSING)
     end
-  rescue ex
-    add_error(ex.message || "exception")
-    Token.new(:VT_MISSING, 0, 0, false)
   end
 
   def current_token : Token
     @tokens[@tokens_idx]
+  end
+
+  def current_parent : AST::Node::ParentType
+    @parent_nodes.last
   end
 
   def next_token : Token

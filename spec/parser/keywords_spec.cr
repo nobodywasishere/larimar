@@ -7,8 +7,8 @@ private macro parse_token(kw, type)
 
     document.lex_errors.should be_empty
     document.tokens.should eq([
-      Larimar::Parser::Token.new({{ type }}, 0, {{ kw.size }}, false),
-      Larimar::Parser::Token.new(:EOF, 0, 0, false)
+      Larimar::Parser::Token.new({{ type }}, 0, {{ kw.size }}),
+      Larimar::Parser::Token.new(:EOF)
     ])
   end
 end
@@ -20,7 +20,7 @@ private macro parse_tokens(kw, tokens)
 
     document.lex_errors.should be_empty
     document.tokens.should eq({{ tokens }} + [
-      Larimar::Parser::Token.new(:EOF, 0, 0, false)
+      Larimar::Parser::Token.new(:EOF)
     ])
   end
 end
@@ -36,8 +36,8 @@ describe Larimar::Parser::Lexer do
   parse_token("asm_word", :IDENT)
   parse_token("as?", :KW_AS_QUESTION)
   parse_tokens("as?word", [
-    Larimar::Parser::Token.new(:KW_AS_QUESTION, 0, 3, false),
-    Larimar::Parser::Token.new(:IDENT, 0, 4, false),
+    Larimar::Parser::Token.new(:KW_AS_QUESTION, 0, 3),
+    Larimar::Parser::Token.new(:IDENT, 0, 4),
   ])
   parse_token("as", :KW_AS)
   parse_token("as_word", :IDENT)
@@ -79,8 +79,8 @@ describe Larimar::Parser::Lexer do
   parse_token("instance_alignof_word", :IDENT)
   parse_token("is_a?", :KW_IS_A_QUESTION)
   parse_tokens("is_a?word", [
-    Larimar::Parser::Token.new(:KW_IS_A_QUESTION, 0, 5, false),
-    Larimar::Parser::Token.new(:IDENT, 0, 4, false),
+    Larimar::Parser::Token.new(:KW_IS_A_QUESTION, 0, 5),
+    Larimar::Parser::Token.new(:IDENT, 0, 4),
   ])
   parse_token("is_a_word", :IDENT)
   parse_token("lib", :KW_LIB)
@@ -93,8 +93,8 @@ describe Larimar::Parser::Lexer do
   parse_token("next_word", :IDENT)
   parse_token("nil?", :KW_NIL_QUESTION)
   parse_tokens("nil?word", [
-    Larimar::Parser::Token.new(:KW_NIL_QUESTION, 0, 4, false),
-    Larimar::Parser::Token.new(:IDENT, 0, 4, false),
+    Larimar::Parser::Token.new(:KW_NIL_QUESTION, 0, 4),
+    Larimar::Parser::Token.new(:IDENT, 0, 4),
   ])
   parse_token("nil", :KW_NIL)
   parse_token("nil_word", :IDENT)
@@ -114,8 +114,8 @@ describe Larimar::Parser::Lexer do
   parse_token("rescue_word", :IDENT)
   parse_token("responds_to?", :KW_RESPONDS_TO_QUESTION)
   parse_tokens("responds_to?word", [
-    Larimar::Parser::Token.new(:KW_RESPONDS_TO_QUESTION, 0, 12, false),
-    Larimar::Parser::Token.new(:IDENT, 0, 4, false),
+    Larimar::Parser::Token.new(:KW_RESPONDS_TO_QUESTION, 0, 12),
+    Larimar::Parser::Token.new(:IDENT, 0, 4),
   ])
   parse_token("return", :KW_RETURN)
   parse_token("return_word", :IDENT)

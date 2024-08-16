@@ -21,7 +21,7 @@ class Larimar::Parser
       end
 
       if tokens.empty? || !tokens.last.kind.eof?
-        tokens << Token.new(:EOF, 0, 0, false)
+        tokens << Token.new(:EOF)
       end
 
       document.tokens = tokens
@@ -93,14 +93,18 @@ class Larimar::Parser
     def next_token : Larimar::Parser::Token
       full_start = @reader.pos
       trivia_newline = false
+      trivia_semicolon = false
 
       # Capture whitespace and comments
       loop do
         case current_char
         when ' ', '\t', '\r'
           next_char
-        when '\n', ';'
+        when '\n'
           trivia_newline = true
+          next_char
+        when ';'
+          trivia_semicolon = true
           next_char
         when '#'
           until current_char.in?('\r', '\n', '\0')
@@ -942,13 +946,14 @@ class Larimar::Parser
 
       full_start = full_start.not_nil!
       trivia_newline = trivia_newline.nil? ? false : trivia_newline
+      trivia_semicolon = trivia_semicolon.nil? ? false : trivia_semicolon
 
       if start
         new_token(TokenKind::VT_SKIPPED)
       else
         Token.new(
-          :VT_SKIPPED, @reader.pos - full_start,
-          @reader.pos - full_start, trivia_newline
+          :VT_SKIPPED, @reader.pos - full_start, @reader.pos - full_start,
+          trivia_newline, trivia_semicolon
         )
       end
     end
@@ -1169,8 +1174,8 @@ class Larimar::Parser
 
     macro new_token(kind)
       Token.new(
-        {{ kind }}, start - full_start,
-        @reader.pos - full_start, trivia_newline
+        {{ kind }}, start - full_start, @reader.pos - full_start,
+        trivia_newline, trivia_semicolon
       )
     end
 

@@ -176,7 +176,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     errors = document.lex_errors + document.parse_errors
 
     each_token_with_pos(document) do |doc_idx, token, position|
-      if errs = errors.select { |e| doc_idx + token.start <= e.pos <= (doc_idx + token.length) }
+      if errs = errors.select { |e| doc_idx + token.start <= e.pos < (doc_idx + token.length) }
         errs.each do |err|
           diagnostics << LSProtocol::Diagnostic.new(
             message: err.message,

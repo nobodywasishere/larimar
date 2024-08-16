@@ -3,6 +3,11 @@ class Larimar::Parser
     abstract class Node
       include JSON::Serializable
 
+      enum ParentType
+        Nop
+        Array
+      end
+
       macro inherited
         getter node : String = {{ @type.name.stringify.split("::").last }}
       end

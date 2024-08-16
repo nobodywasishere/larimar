@@ -11,8 +11,12 @@ class Larimar::Parser
     getter length : Int32
 
     getter trivia_newline : Bool
+    getter trivia_semicolon : Bool
 
-    def initialize(@kind : TokenKind, @start, @length, @trivia_newline)
+    def initialize(
+      @kind : TokenKind, @start = 0, @length = 0,
+      @trivia_newline = false, @trivia_semicolon = false
+    )
     end
 
     def text_length : Int32
@@ -20,7 +24,10 @@ class Larimar::Parser
     end
 
     def skipped
-      Token.new(:VT_SKIPPED, start, length, trivia_newline)
+      Token.new(
+        :VT_SKIPPED, start, length,
+        trivia_newline, trivia_semicolon
+      )
     end
   end
 end
