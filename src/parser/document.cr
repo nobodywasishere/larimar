@@ -1,4 +1,23 @@
 class Larimar::Parser
+  record(
+    SemanticToken,
+    line : Int32,
+    char : Int32,
+    size : Int32,
+    type : LSProtocol::SemanticTokenTypes,
+    mods : LSProtocol::SemanticTokenModifiers = :none
+  ) do
+    def to_a : Array(UInt32)
+      [
+        @line.to_u32,
+        @char.to_u32,
+        @size.to_u32,
+        @type.value.to_u32,
+        @mods.value.to_u32,
+      ]
+    end
+  end
+
   class Document
     Log = ::Larimar::Log.for(self)
 
@@ -10,7 +29,7 @@ class Larimar::Parser
     getter mutex : Mutex = Mutex.new
 
     property tokens : Array(Token) = Array(Token).new
-    property semantic_tokens : Array(SemanticTokensVisitor::SemanticToken) = Array(SemanticTokensVisitor::SemanticToken).new
+    property semantic_tokens : Array(SemanticToken) = Array(SemanticToken).new
     property lex_errors : Array(Lexer::LexerError) = Array(Lexer::LexerError).new
     property diagnostics : Array(LSProtocol::Diagnostic) = Array(LSProtocol::Diagnostic).new
     property ast : AST::Node = AST::Nop.new
@@ -144,7 +163,6 @@ class Larimar::Parser
           )
         end
       end
-
 
       raise IndexError.new("#{index} not in document")
     end

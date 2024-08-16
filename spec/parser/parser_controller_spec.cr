@@ -12,13 +12,13 @@ describe Larimar::Parser::Controller do
       Larimar::Parser::Controller.generate_semantic_tokens(document)
 
       document.semantic_tokens.should eq([
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 0, size: 7, type: :KEYWORD
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 8, size: 6, type: :STRING
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 1, char: 0, size: 5, type: :VARIABLE
         ),
       ])
@@ -33,16 +33,16 @@ describe Larimar::Parser::Controller do
       Larimar::Parser::Controller.generate_semantic_tokens(document)
 
       document.semantic_tokens.should eq([
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 0, size: 2, type: :KEYWORD
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 3, size: 1, type: :VARIABLE
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 1, size: 1, type: :OPERATOR
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 1, size: 4, type: :KEYWORD
         ),
       ])
@@ -57,28 +57,28 @@ describe Larimar::Parser::Controller do
       Larimar::Parser::Controller.generate_semantic_tokens(document)
 
       document.semantic_tokens.should eq([
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 0, size: 4, type: :VARIABLE
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 5, size: 25, type: :STRING
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 25, size: 3, type: :STRING
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 3, size: 1, type: :OPERATOR
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 1, size: 3, type: :KEYWORD
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 3, size: 1, type: :OPERATOR
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 1, size: 6, type: :NAMESPACE
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 6, size: 1, type: :OPERATOR
         ),
       ])
@@ -95,46 +95,46 @@ describe Larimar::Parser::Controller do
       Larimar::Parser::Controller.generate_semantic_tokens(document)
 
       document.semantic_tokens.should eq([
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 0, size: 4, type: :VARIABLE
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 5, size: 1, type: :OPERATOR
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 2, size: 4, type: :KEYWORD
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 5, size: 5, type: :VARIABLE
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 5, size: 1, type: :OPERATOR
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 1, size: 4, type: :VARIABLE
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 1, char: 7, size: 4, type: :KEYWORD
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 5, size: 1, type: :OPERATOR
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 1, size: 6, type: :VARIABLE
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 1, char: 8, size: 10, type: :NAMESPACE
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 10, size: 2, type: :OPERATOR
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 2, size: 18, type: :NAMESPACE
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 18, size: 2, type: :OPERATOR
         ),
-        Larimar::SemanticTokensVisitor::SemanticToken.new(
+        Larimar::Parser::SemanticToken.new(
           line: 0, char: 2, size: 8, type: :NAMESPACE
         ),
       ])

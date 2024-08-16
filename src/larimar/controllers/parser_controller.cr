@@ -23,50 +23,50 @@ class Larimar::Parser::Controller < Larimar::Controller
   end
 
   # Temp for testing Document
-  def on_request(message : LSProtocol::TextDocumentFormattingRequest)
-    @pending_requests << message.id
+  # def on_request(message : LSProtocol::TextDocumentFormattingRequest)
+  #   @pending_requests << message.id
 
-    params = message.params
-    document_uri = params.text_document.uri
+  #   params = message.params
+  #   document_uri = params.text_document.uri
 
-    return unless (document = @documents[document_uri]?)
+  #   return unless (document = @documents[document_uri]?)
 
-    document.mutex.synchronize do
-      GC.disable
-      document.update_whole Crystal.format(document.to_s)
-      GC.enable
-    rescue e
-      Log.error(exception: e) { "Error when formatting:\n#{e}" }
+  #   document.mutex.synchronize do
+  #     GC.disable
+  #     document.update_whole Crystal.format(document.to_s)
+  #     GC.enable
+  #   rescue e
+  #     Log.error(exception: e) { "Error when formatting:\n#{e}" }
 
-      return
-    end
+  #     return
+  #   end
 
-    LSProtocol::TextDocumentFormattingResponse.new(
-      id: message.id,
-      result: [
-        LSProtocol::TextEdit.new(
-          range: LSProtocol::Range.new(
-            start: LSProtocol::Position.new(
-              line: 0, character: 0
-            ),
-            end: LSProtocol::Position.new(
-              line: (document.line_count + 1).to_u32, character: 0_u32
-            )
-          ),
-          new_text: document.to_s
-        ),
-      ]
-    )
-  ensure
-    @pending_requests.delete(message.id)
-  end
+  #   LSProtocol::TextDocumentFormattingResponse.new(
+  #     id: message.id,
+  #     result: [
+  #       LSProtocol::TextEdit.new(
+  #         range: LSProtocol::Range.new(
+  #           start: LSProtocol::Position.new(
+  #             line: 0, character: 0
+  #           ),
+  #           end: LSProtocol::Position.new(
+  #             line: (document.line_count + 1).to_u32, character: 0_u32
+  #           )
+  #         ),
+  #         new_text: document.to_s
+  #       ),
+  #     ]
+  #   )
+  # ensure
+  #   @pending_requests.delete(message.id)
+  # end
 
   def on_request(message : LSProtocol::TextDocumentSemanticTokensFullRequest)
     @pending_requests << message.id
 
     params = message.params
     document_uri = params.text_document.uri
-    tokens = [] of SemanticTokensVisitor::SemanticToken
+    tokens = [] of SemanticToken
 
     return unless (document = @documents[document_uri]?)
 
@@ -123,7 +123,7 @@ class Larimar::Parser::Controller < Larimar::Controller
   end
 
   def self.generate_semantic_tokens(document : Document)
-    semantic = [] of SemanticTokensVisitor::SemanticToken
+    semantic = [] of SemanticToken
 
     line_diff = 0
     colm_diff = 0
@@ -162,7 +162,7 @@ class Larimar::Parser::Controller < Larimar::Controller
                LSProtocol::SemanticTokenTypes::Type
              end
 
-      semantic << SemanticTokensVisitor::SemanticToken.new(
+      semantic << SemanticToken.new(
         line: line_diff.to_i32, char: colm_diff.to_i32,
         size: token.text_length, type: type
       )
