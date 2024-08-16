@@ -3,22 +3,20 @@ class Larimar::Parser
     abstract class Node
       include JSON::Serializable
 
-      property parent : Node?
-
       macro inherited
         getter node : String = {{ @type.name.stringify.split("::").last }}
       end
     end
 
     class Nop < Node
-      def initialize(@parent = nil)
+      def initialize
       end
     end
 
     class Expressions < Node
       getter children : Array(Node)
 
-      def initialize(@children, @parent = nil)
+      def initialize(@children)
       end
     end
 
@@ -36,49 +34,49 @@ class Larimar::Parser
       getter children : Array(Node)?
       getter end_token : Token
 
-      def initialize(@begin_token, @children, @end_token, @parent = nil)
+      def initialize(@begin_token, @children, @end_token)
       end
     end
 
     class NilLiteral < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
     class BoolLiteral < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
     class NumberLiteral < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
     class CharLiteral < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
     class StringLiteral < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
     class SymbolLiteral < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
@@ -92,7 +90,7 @@ class Larimar::Parser
 
       def initialize(
         @left_bracket, @elements, @last_element, @right_bracket,
-        @of_token, @type_name, @parent = nil
+        @of_token, @type_name
       )
       end
     end
@@ -102,42 +100,42 @@ class Larimar::Parser
       getter dots : Token
       getter to : Node
 
-      def initialize(@from, @dots, @to, @parent = nil)
+      def initialize(@from, @dots, @to)
       end
     end
 
     class RegexLiteral < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
     class SpecialVar < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
     class Var < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
     class InstanceVar < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
     class ClassVar < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
@@ -156,7 +154,7 @@ class Larimar::Parser
       getter start_colon : Token?
       getter names : Array(Token)
 
-      def initialize(@start_colon, @names, @parent = nil)
+      def initialize(@start_colon, @names)
       end
     end
 
@@ -171,7 +169,7 @@ class Larimar::Parser
 
       def initialize(
         @abstract_keyword, @class_keyword, @name, @super_arrow, @super_name,
-        @body, @end_token, @parent = nil
+        @body, @end_token
       )
       end
     end
@@ -217,7 +215,7 @@ class Larimar::Parser
     class Self < Node
       getter token : Token?
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
@@ -285,7 +283,7 @@ class Larimar::Parser
       getter operator : Token
       getter right : Node
 
-      def initialize(@left, @operator, @right, @parent = nil)
+      def initialize(@left, @operator, @right)
       end
     end
 
@@ -294,7 +292,7 @@ class Larimar::Parser
       getter operator : Token
       getter right : Node
 
-      def initialize(@left, @operator, @right, @parent = nil)
+      def initialize(@left, @operator, @right)
       end
     end
 
@@ -306,15 +304,24 @@ class Larimar::Parser
       getter args : Array(Node)
       getter rparen : Token?
 
-      def initialize(@obj, @dot, @name, @lparen, @args, @rparen, @parent = nil)
+      def initialize(@obj, @dot, @name, @lparen, @args, @rparen)
       end
 
-      def self.new(obj : Node, name : Token, arg : Node, parent : Node? = nil)
-        new(obj, nil, name, nil, [arg] of Node, nil, parent: parent)
+      def self.new(obj : Node, name : Token, arg : Node)
+        new(obj, nil, name, nil, [arg] of Node, nil)
       end
 
-      def self.new(obj : Node, name : Token, parent : Node? = nil)
-        new(obj, nil, name, nil, [] of Node, nil, parent: parent)
+      def self.new(obj : Node, name : Token)
+        new(obj, nil, name, nil, [] of Node, nil)
+      end
+    end
+
+    class OpAssign < Node
+      getter obj : Node
+      getter operator : Token
+      getter value : Node
+
+      def initialize(@obj, @operator, @value)
       end
     end
 
@@ -340,7 +347,7 @@ class Larimar::Parser
       getter mark : Token
       getter expression : Node
 
-      def initialize(@expression, @mark, @parent = nil)
+      def initialize(@expression, @mark)
       end
     end
 
@@ -370,7 +377,7 @@ class Larimar::Parser
     class Error < Node
       getter token : Token
 
-      def initialize(@token, @parent = nil)
+      def initialize(@token)
       end
     end
 
@@ -531,6 +538,13 @@ class Larimar::Parser
       getter expressions : Node
 
       def initialize(@else_token, @expressions)
+      end
+    end
+
+    class Underscore < Node
+      getter token : Token
+
+      def initialize(@token)
       end
     end
   end

@@ -82,7 +82,6 @@ class Larimar::Parser
     OP_SLASH_EQ                 # /=
     OP_COLON                    # :
     OP_COLON_COLON              # ::
-    # OP_SEMICOLON                # ;
     OP_LT                       # <
     OP_LT_LT                    # <<
     OP_LT_LT_EQ                 # <<=
@@ -199,6 +198,19 @@ class Larimar::Parser
 
     def unary_operator?
       self.in?(OP_BANG, OP_PLUS, OP_MINUS, OP_TILDE, OP_AMP_PLUS, OP_AMP_MINUS)
+    end
+
+    def assignment_operator?
+      # += -= *= /= //= %= |= &= ^= **= <<= >>= ||= &&= &+= &-= &*=
+      case self
+      when .op_plus_eq?, .op_minus_eq?, .op_star_eq?, .op_slash_eq?, .op_slash_slash_eq?,
+           .op_percent_eq?, .op_bar_eq?, .op_amp_eq?, .op_caret_eq?, .op_star_star_eq?,
+           .op_lt_lt_eq?, .op_gt_gt_eq?, .op_bar_bar_eq?, .op_amp_amp_eq?, .op_amp_plus_eq?,
+           .op_amp_minus_eq?, .op_amp_star_eq?
+        true
+      else
+        false
+      end
     end
   end
 end

@@ -9,7 +9,7 @@ class Larimar::Parser
   @tokens_idx = 0
   @doc_idx = 0
 
-  @var_scopes = Array(Set(String)).new
+  @var_scopes = [Set(String).new]
 
   def self.parse_full(document : Document) : Nil
     Lexer.lex_full(document)
@@ -64,7 +64,104 @@ class Larimar::Parser
 
   def parse_op_assign : AST::Node
     # TODO: stuff
-    parse_question_colon
+    atomic = parse_question_colon
+
+    while true
+      case current_token.kind
+      when .op_eq?
+        break unless can_be_assigned?(atomic)
+
+        atomic_name = get_atomic_name(atomic)
+        break unless atomic_name
+
+        if atomic.is_a?(AST::Self) || (atomic.is_a?(AST::Var) && (token = atomic.token) && token.kind.kw_self?)
+          add_error("can't change the value of self")
+        end
+
+        case atomic
+        when AST::Path
+          needs_new_scope = true
+        when AST::InstanceVar
+          needs_new_scope = false # @def_nest == 0
+        when AST::ClassVar
+          needs_new_scope = false # @def_nest == 0
+          # when Var
+          # @assigns_special_var = true if atomic.special_var?
+        else
+          needs_new_scope = false
+        end
+
+        operator = consume(:OP_EQ)
+
+        value = with_isolated_var_scope(needs_new_scope) do
+          parse_op_assign_no_control
+        end
+
+        push_var(atomic_name)
+
+        atomic = AST::Assign.new(atomic, operator, value)
+      when .assignment_operator?
+        break unless can_be_assigned?(atomic)
+
+        atomic_name = get_atomic_name(atomic)
+        break unless atomic_name
+
+        if atomic.is_a?(AST::Path)
+          add_error("can't reassign to constant")
+        end
+
+        if atomic.is_a?(AST::Self) || (atomic.is_a?(AST::Var) && (token = atomic.token) && token.kind.kw_self?)
+          add_error("can't change the value of self")
+        end
+
+        # TODO: figure out why stdlib limited this to calls
+        if !var_in_scope?(atomic_name) && !atomic.is_a?(AST::Path)
+          add_error("assignment before definition of '#{atomic_name}'")
+        end
+
+        push_var(atomic_name)
+
+        operator = next_token
+        value = parse_op_assign_no_control
+
+        atomic = AST::OpAssign.new(atomic, operator, value)
+      else
+        break
+      end
+    end
+
+    atomic
+  end
+
+  def can_be_assigned?(node : AST::Node) : Bool
+    case node
+    when AST::Var, AST::InstanceVar, AST::ClassVar, AST::Path, AST::Underscore, AST::Self
+      true
+    when AST::Call
+      # TODO: check block
+      node.lparen.nil? && ((node.obj.is_a?(AST::Nop) && node.args.empty?) || node.name.kind.op_lsquare_rsquare?)
+    else
+      false
+    end
+  end
+
+  def get_atomic_name(node : AST::Node) : String?
+    case node
+    when AST::Path
+      path_size = node.start_colon.try(&.text_length) || 0
+      path_size += node.names.sum(&.text_length)
+      @document.slice(
+        @doc_idx - path_size - 1, path_size
+      )
+    when AST::Var, AST::InstanceVar, AST::ClassVar
+      atomic_name = @document.slice(
+        @doc_idx - node.token.text_length - 1, node.token.text_length
+      )
+    end
+  end
+
+  def push_var(name : String)
+    @var_scopes.last.add(name)
   end
 
   def parse_op_assign_no_control : AST::Node
@@ -224,6 +321,8 @@ class Larimar::Parser
     when .global?
       add_error("$global_variables are not supported, use @@class_variables instead")
       current_token_as(AST::Error)
+    when .op_dollar_tilde?, .op_dollar_question?
+      current_token_as(AST::Var)
     when .kw_begin?
       parse_begin
     when .kw_nil?
@@ -232,6 +331,10 @@ class Larimar::Parser
       current_token_as(AST::BoolLiteral)
     when .kw_false?
       current_token_as(AST::BoolLiteral)
+    when .kw_self?
+      current_token_as(AST::Self)
+    when .underscore?
+      current_token_as(AST::Underscore)
     when .instance_var?
       parse_instance_var
     when .class_var?
@@ -285,6 +388,9 @@ class Larimar::Parser
       parse_extend
     when .ident?
       parse_var_or_call
+    when .const?
+      # parse_generic_or_custom_literal
+      parse_path
     when .vt_skipped?
       current_token_as(AST::Error)
     when .eof?
@@ -327,9 +433,22 @@ class Larimar::Parser
       return parse_nil?(obj)
     end
 
-    name = consume(:IDENT)
+    name_token = consume(:IDENT)
+    # NOTE: no way to do this without pulling the actual string
+    name_str = @document.slice(@doc_idx - name_token.text_length, name_token.text_length)
 
-    AST::Var.new(name)
+    is_var = var?(name_str)
+
+    AST::Var.new(name_token)
+  end
+
+  def var?(name : String) : Bool
+    # return true if in macro expression
+    name == "self" || var_in_scope?(name)
+  end
+
+  def var_in_scope?(name : String) : Bool
+    @var_scopes.last.includes?(name)
   end
 
   def parse_is_a(atomic : AST::Node) : AST::Node
@@ -1070,11 +1189,15 @@ class Larimar::Parser
     end
   end
 
-  def with_isolated_var_scope(&)
-    @var_scopes.push(Set(String).new)
-    yield
-  ensure
-    @var_scopes.pop
+  def with_isolated_var_scope(create_scope = true, &)
+    return yield unless create_scope
+
+    begin
+      @var_scopes.push(Set(String).new)
+      yield
+    ensure
+      @var_scopes.pop
+    end
   end
 
   def with_lexical_var_scope(&)
