@@ -18,6 +18,14 @@ class Larimar::Parser
       end
     end
 
+    class Unary < Node
+      getter token : Token
+      getter atomic : Node
+
+      def initialize(@token, @atomic)
+      end
+    end
+
     class Expressions < Node
       getter children : Array(Node)
 
@@ -134,6 +142,14 @@ class Larimar::Parser
       getter token : Token
 
       def initialize(@token)
+      end
+    end
+
+    class ReadInstanceVar < Node
+      getter atomic : Node
+      getter instance_variable : Token
+
+      def initialize(@atomic, @instance_variable)
       end
     end
 
@@ -316,17 +332,18 @@ class Larimar::Parser
         new(obj, nil, name, nil, [arg] of Node, nil)
       end
 
-      def self.new(obj : Node, name : Token)
-        new(obj, nil, name, nil, [] of Node, nil)
+      def self.new(obj : Node, name : Token, *, dot : Token? = nil)
+        new(obj, dot, name, nil, [] of Node, nil)
       end
     end
 
     class OpAssign < Node
       getter obj : Node
+      getter dot_token : Token?
       getter operator : Token
       getter value : Node
 
-      def initialize(@obj, @operator, @value)
+      def initialize(@obj, @dot_token, @operator, @value)
       end
     end
 

@@ -63,6 +63,7 @@ class Larimar::Parser
     OP_AMP_EQ                   # &=
     OP_LPAREN                   # (
     OP_RPAREN                   # )
+    OP_SEMICOLON                # ;
     OP_STAR                     # *
     OP_STAR_STAR                # **
     OP_STAR_STAR_EQ             # **=

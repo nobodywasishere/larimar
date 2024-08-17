@@ -125,7 +125,7 @@ class Larimar::Parser
         operator = next_token
         value = parse_op_assign_no_control
 
-        atomic = AST::OpAssign.new(atomic, operator, value)
+        atomic = AST::OpAssign.new(atomic, nil, operator, value)
       else
         break
       end
@@ -197,7 +197,7 @@ class Larimar::Parser
     end
 
     loop do
-      if current_token.trivia_newline || current_token.trivia_semicolon
+      if current_token.trivia_newline || current_token.kind.op_semicolon?
         break
       end
 
@@ -218,7 +218,7 @@ class Larimar::Parser
 
     kind = current_token.kind
     if end_token? || kind.op_rparen? || kind.op_comma? || kind.op_eq_gt? ||
-       current_token.trivia_newline || current_token.trivia_semicolon
+       current_token.trivia_newline || kind.op_semicolon?
       right = AST::Nop.new
     else
       right = parse_or
@@ -295,7 +295,103 @@ class Larimar::Parser
   end
 
   def parse_atomic_with_method
-    parse_atomic
+    atomic = parse_atomic
+    parse_atomic_method_suffix(atomic)
+  end
+
+  def parse_atomic_method_suffix(atomic : AST::Node, atomic_dot : Token? = nil) : AST::Node
+    while true
+      if current_token.trivia_newline
+        case atomic
+        when AST::ClassDef, AST::ModuleDef, AST::EnumDef, AST::Def # AST::FunDef
+          break
+        end
+
+        if current_token.kind.op_period?
+          break
+        end
+      end
+
+      case current_token.kind
+      when .op_period?
+        check_void_value(atomic)
+        dot_token = consume(:OP_PERIOD)
+
+        if current_token.kind.instance_var?
+          ivar = consume(:INSTANCE_VAR)
+
+          atomic = AST::ReadInstanceVar.new(atomic, ivar)
+          next
+        end
+
+        case current_token.kind
+        when .kw_is_a_question?
+          atomic = parse_is_a(atomic, dot_token)
+        when .kw_as?
+          atomic = parse_as(atomic)
+        when .kw_as_question?
+          atomic = parse_as?(atomic)
+        when .kw_responds_to_question?
+          atomic = parse_responds_to(atomic)
+        when .kw_nil_question? # and not in macro expression
+          atomic = parse_nil?(atomic)
+        when .op_lsquare?
+          return parse_atomic_method_suffix(atomic, dot_token)
+        else
+          # Don't include :OP_GRAVE
+          method_token = consume(AtomicWithMethodKinds + PseudoMethodNames)
+
+          case current_token.kind
+          when .op_eq?
+            equals_token = consume(:OP_EQ)
+            args = [] of AST::Node
+
+            if current_token.kind.op_lparen?
+              lparen = consume(:OP_LPAREN)
+
+              if current_token.kind.op_star?
+                args << parse_single_arg
+              else
+                args << parse_op_assign_no_control
+              end
+
+              rparen = consume(:OP_RPAREN)
+            else
+              args << parse_single_arg
+            end
+
+            atomic = AST::Call.new(atomic, dot_token, equals_token, lparen, args, rparen)
+          when .assignment_operator?
+            # TODO: how is this code called???
+            # value = parse_op_assign
+            # atomic = AST::OpAssign.new(atomic, dot_token, method_token, value)
+          else
+          end
+        end
+
+        break
+      when .op_lsquare_rsquare?
+        check_void_value(atomic)
+        operator = consume(:OP_LSQUARE_RSQUARE)
+        atomic = AST::Call.new(atomic, operator, dot: atomic_dot)
+      when .op_lsquare?
+        break
+      else
+        break
+      end
+    end
+
+    atomic
+  end
+
+  def parse_single_arg : AST::Node
+    if current_token.kind.op_star?
+      star = consume(:OP_STAR)
+      arg = parse_op_assign_no_control
+      AST::Unary.new(star, arg)
+    else
+      parse_op_assign_no_control
+    end
   end
 
   def parse_atomic : AST::Node
@@ -387,6 +483,22 @@ class Larimar::Parser
       parse_include
     when .kw_extend?
       parse_extend
+    when .kw_is_a_question?
+      obj = AST::Self.new(nil)
+      parse_is_a(obj)
+    when .kw_as?
+      obj = AST::Self.new(nil)
+      parse_as(obj)
+    when .kw_as_question?
+      obj = AST::Self.new(nil)
+      parse_as?(obj)
+    when .kw_responds_to_question?
+      obj = AST::Self.new(nil)
+      parse_responds_to(obj)
+    when .kw_nil_question?
+      # TODO: unless in macro exp
+      obj = AST::Self.new(nil)
+      parse_nil?(obj)
     when .ident?
       parse_var_or_call
     when .const?
@@ -403,8 +515,10 @@ class Larimar::Parser
       case current_parent
       when .array?
         case current_token.kind
-        when .op_comma?, .op_rsquare?
+        when .op_comma?
           add_error("incomplete array element expression")
+          return AST::Nop.new
+        when .op_rsquare?
           return AST::Nop.new
         end
       end
@@ -463,7 +577,7 @@ class Larimar::Parser
     @var_scopes.last.includes?(name)
   end
 
-  def parse_is_a(atomic : AST::Node) : AST::Node
+  def parse_is_a(atomic : AST::Node, dot : Token? = nil) : AST::Node
     token = consume(:KW_IS_A_QUESTION)
     lparen = consume?(:OP_LPAREN)
     if lparen
@@ -473,10 +587,10 @@ class Larimar::Parser
       type_name = parse_union_type
     end
 
-    AST::IsA.new(atomic, nil, token, lparen, type_name, rparen)
+    AST::IsA.new(atomic, dot, token, lparen, type_name, rparen)
   end
 
-  def parse_as(atomic : AST::Node) : AST::Node
+  def parse_as(atomic : AST::Node, dot : Token? = nil) : AST::Node
     token = consume(:KW_AS)
     lparen = consume?(:OP_LPAREN)
     if lparen
@@ -486,10 +600,10 @@ class Larimar::Parser
       type_name = parse_union_type
     end
 
-    AST::Cast.new(atomic, nil, token, lparen, type_name, rparen)
+    AST::Cast.new(atomic, dot, token, lparen, type_name, rparen)
   end
 
-  def parse_as?(atomic : AST::Node) : AST::Node
+  def parse_as?(atomic : AST::Node, dot : Token? = nil) : AST::Node
     token = consume(:KW_AS_QUESTION)
     lparen = consume?(:OP_LPAREN)
     if lparen
@@ -499,10 +613,10 @@ class Larimar::Parser
       type_name = parse_union_type
     end
 
-    AST::NilableCast.new(atomic, nil, token, lparen, type_name, rparen)
+    AST::NilableCast.new(atomic, dot, token, lparen, type_name, rparen)
   end
 
-  def parse_responds_to(atomic : AST::Node) : AST::Node
+  def parse_responds_to(atomic : AST::Node, dot : Token? = nil) : AST::Node
     token = consume(:KW_RESPONDS_TO_QUESTION)
     lparen = consume?(:OP_LPAREN)
 
@@ -512,10 +626,10 @@ class Larimar::Parser
       rparen = consume(:OP_RPAREN)
     end
 
-    AST::RespondsTo.new(atomic, nil, token, lparen, type_name, rparen)
+    AST::RespondsTo.new(atomic, dot, token, lparen, type_name, rparen)
   end
 
-  def parse_nil?(atomic : AST::Node) : AST::Node
+  def parse_nil?(atomic : AST::Node, dot : Token? = nil) : AST::Node
     token = consume(:KW_AS_QUESTION)
     lparen = consume?(:OP_LPAREN)
 
@@ -523,7 +637,7 @@ class Larimar::Parser
       rparen = consume(:OP_RPAREN)
     end
 
-    AST::IsNil.new(atomic, nil, token, lparen, rparen)
+    AST::IsNil.new(atomic, dot, token, lparen, rparen)
   end
 
   def parse_if : AST::Node
@@ -591,7 +705,7 @@ class Larimar::Parser
         rparen = consume(:OP_RPAREN)
         break
       elsif current_token.trivia_newline ||
-            current_token.trivia_semicolon ||
+            current_token.kind.op_semicolon? ||
             current_token.kind.eof?
         # Keep going
       else
@@ -782,7 +896,7 @@ class Larimar::Parser
           last_condition = parse_when_expression
 
           if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline ||
-             current_token.trivia_semicolon || current_token.kind.eof?
+             current_token.kind.op_semicolon? || current_token.kind.eof?
             break
           end
 
@@ -846,7 +960,7 @@ class Larimar::Parser
           end
 
           if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline ||
-             current_token.trivia_semicolon || current_token.kind.eof?
+             current_token.kind.op_semicolon? || current_token.kind.eof?
             break
           end
 
@@ -1019,7 +1133,7 @@ class Larimar::Parser
           const_value = parse_logical_or
         end
 
-        unless current_token.trivia_newline || current_token.trivia_semicolon || current_token.kind.eof?
+        unless current_token.trivia_newline || current_token.kind.op_semicolon? || current_token.kind.eof?
           add_error("expecting ';', 'end', or newline after enum member")
         end
 
@@ -1079,19 +1193,25 @@ class Larimar::Parser
   end
 
   # IDENT CONST ` << < <= == === != =~ !~ >> > >= + - * / // ! ~ % & | ^ ** [] []? []= <=> &+ &- &* &**
-  DefOrMacroNameKinds = [
-    :IDENT, :CONST, :OP_GRAVE,
-    :OP_LT_LT, :OP_LT, :OP_LT_EQ, :OP_EQ_EQ, :OP_EQ_EQ_EQ, :OP_BANG_EQ, :OP_EQ_TILDE,
-    :OP_BANG_TILDE, :OP_GT_GT, :OP_GT, :OP_GT_EQ, :OP_PLUS, :OP_MINUS, :OP_STAR, :OP_SLASH,
-    :OP_SLASH_SLASH, :OP_BANG, :OP_TILDE, :OP_PERCENT, :OP_AMP, :OP_BAR, :OP_CARET, :OP_STAR_STAR,
-    :OP_LSQUARE_RSQUARE, :OP_LSQUARE_RSQUARE_EQ, :OP_LSQUARE_RSQUARE_QUESTION, :OP_LT_EQ_GT,
-    :OP_AMP_PLUS, :OP_AMP_MINUS, :OP_AMP_STAR, :OP_AMP_STAR_STAR,
-    :KW_IS_A_QUESTION, :KW_AS, :KW_AS_QUESTION, :KW_RESPONDS_TO_QUESTION, :KW_NIL_QUESTION,
+  DefOrMacroNameKinds = begin
+    AtomicWithMethodKinds + PseudoMethodNames + [:OP_GRAVE] of TokenKind
+  end
+
+  AtomicWithMethodKinds = [
+    :IDENT, :CONST,
+    :OP_AMP_MINUS, :OP_AMP_PLUS, :OP_AMP_STAR_STAR, :OP_AMP_STAR, :OP_AMP,
+    :OP_BANG_EQ, :OP_BANG_TILDE, :OP_BANG, :OP_BAR, :OP_CARET,
+    :OP_EQ_EQ_EQ, :OP_EQ_EQ, :OP_EQ_TILDE,
+    :OP_GT_EQ, :OP_GT_GT, :OP_GT,
+    :OP_LSQUARE_RSQUARE_EQ, :OP_LSQUARE_RSQUARE_QUESTION, :OP_LSQUARE_RSQUARE, :OP_LSQUARE,
+    :OP_LT_EQ_GT, :OP_LT_EQ, :OP_LT_LT, :OP_LT,
+    :OP_MINUS, :OP_PERCENT, :OP_PLUS,
+    :OP_SLASH_SLASH, :OP_SLASH, :OP_STAR_STAR, :OP_STAR, :OP_TILDE,
   ] of TokenKind
 
   PseudoMethodNames = [
-    :KW_IS_A_QUESTION, :KW_AS, :KW_AS_QUESTION,
-    :KW_RESPONDS_TO_QUESTION, :KW_NIL_QUESTION,
+    :KW_AS_QUESTION, :KW_AS, :KW_IS_A_QUESTION,
+    :KW_NIL_QUESTION, :KW_RESPONDS_TO_QUESTION,
   ] of TokenKind
 
   def parse_def(abstract_token : Token? = nil) : AST::Node
@@ -1209,6 +1329,13 @@ class Larimar::Parser
     when .kw_break?, .kw_next?, .kw_return?
       add_error("void value expression")
       current_token_as(AST::Error)
+    end
+  end
+
+  def check_void_value(node : AST::Node) : Nil
+    case node
+    # TODO: stuff
+    # when AST::ControlExpression
     end
   end
 
