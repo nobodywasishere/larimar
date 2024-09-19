@@ -6,10 +6,16 @@ class Larimar::Parser
       enum ParentType
         Nop
         Array
+        Assign
+        Enum
+        Def
+        Class
+        Module
       end
 
       macro inherited
         getter node : String = {{ @type.name.stringify.split("::").last }}
+        property semicolon : Token? = nil
       end
     end
 
@@ -495,7 +501,7 @@ class Larimar::Parser
       getter case_token : Token
       getter condition : Node?
       getter when_expressions : Array(Node)?
-      getter else_node : Else?
+      getter else_node : Node?
       getter end_token : Token
 
       def initialize(@case_token, @condition, @when_expressions, @else_node, @end_token)
@@ -505,7 +511,7 @@ class Larimar::Parser
     class Select < Node
       getter select_token : Token
       getter when_expressions : Array(Node)?
-      getter else_node : Else?
+      getter else_node : Node?
       getter end_token : Token
 
       def initialize(@select_token, @when_expressions, @else_node, @end_token)

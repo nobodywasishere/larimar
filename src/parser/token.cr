@@ -25,5 +25,9 @@ class Larimar::Parser
     def skipped
       Token.new(:VT_SKIPPED, start, length, trivia_newline)
     end
+
+    def to_json(json : JSON::Builder) : Nil
+      json.string(@kind.to_s)
+    end
   end
 end

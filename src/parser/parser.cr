@@ -38,6 +38,8 @@ class Larimar::Parser
   end
 
   def parse_expressions : AST::Node
+    Log.debug { "#{@doc_idx}: parse_expressions" }
+
     node = AST::Expressions.new([] of AST::Node)
 
     if end_token?
@@ -46,7 +48,10 @@ class Larimar::Parser
     end
 
     loop do
-      node.children << parse_multi_assign
+      child = parse_multi_assign
+      child.semicolon = consume?(:OP_SEMICOLON)
+      node.children << child
+
       break if end_token?
     end
 
@@ -54,16 +59,22 @@ class Larimar::Parser
   end
 
   def parse_multi_assign : AST::Node
+    Log.debug { "#{@doc_idx}: parse_multi_assign" }
+
     # TODO: stuff
     parse_expression
   end
 
   def parse_expression : AST::Node
+    Log.debug { "#{@doc_idx}: parse_expression" }
+
     # TODO: stuff
     parse_op_assign
   end
 
   def parse_op_assign : AST::Node
+    Log.debug { "#{@doc_idx}: parse_op_assign" }
+
     # TODO: stuff
     atomic = parse_question_colon
 
@@ -95,7 +106,7 @@ class Larimar::Parser
         operator = consume(:OP_EQ)
 
         value = with_isolated_var_scope(needs_new_scope) do
-          parse_op_assign_no_control
+          with_parent(:Assign) { parse_op_assign_no_control }
         end
 
         push_var(atomic_name)
@@ -166,10 +177,14 @@ class Larimar::Parser
   end
 
   def parse_op_assign_no_control : AST::Node
+    Log.debug { "#{@doc_idx}: parse_op_assign_no_control" }
+
     check_void_expression_keyword || parse_op_assign
   end
 
   def parse_question_colon : AST::Node
+    Log.debug { "#{@doc_idx}: parse_question_colon" }
+
     cond = parse_range
 
     while current_token.kind.op_question?
@@ -185,6 +200,8 @@ class Larimar::Parser
   end
 
   def parse_range : AST::Node
+    Log.debug { "#{@doc_idx}: parse_range" }
+
     if current_token.kind.op_period_period? || current_token.kind.op_period_period_period?
       expression = AST::Nop.new
     else
@@ -229,6 +246,8 @@ class Larimar::Parser
 
   macro parse_operator(name, next_operator, node, *operators, right_associative = false)
     def parse_{{ name.id }} : AST::Node
+      Log.debug { "#{@doc_idx}: parse_{{ name.id }}" }
+
       left = parse_{{ next_operator.id }}
 
       while true
@@ -255,6 +274,8 @@ class Larimar::Parser
   parse_operator shift, add_or_sub, "AST::Call.new left, operator, right", :op_lt_lt?, :op_gt_gt?
 
   def parse_add_or_sub : AST::Node
+    Log.debug { "#{@doc_idx}: parse_add_or_sub" }
+
     left = parse_mul_or_div
 
     while true
@@ -277,6 +298,8 @@ class Larimar::Parser
   parse_operator pow, prefix, "AST::Call.new left, operator, right", :op_star_star?, :op_amp_star_star?, right_associative: true
 
   def parse_prefix : AST::Node
+    Log.debug { "#{@doc_idx}: parse_prefix" }
+
     case current_token.kind
     when .unary_operator?
       operator = current_token
@@ -284,22 +307,22 @@ class Larimar::Parser
 
       arg = parse_prefix
 
-      if operator.kind.op_bang?
-        AST::Not.new(arg, operator)
-      else
-        AST::Call.new(arg, operator)
-      end
+      AST::Unary.new(operator, arg)
     else
       parse_atomic_with_method
     end
   end
 
   def parse_atomic_with_method
+    Log.debug { "#{@doc_idx}: parse_atomic_with_method" }
+
     atomic = parse_atomic
     parse_atomic_method_suffix(atomic)
   end
 
   def parse_atomic_method_suffix(atomic : AST::Node, atomic_dot : Token? = nil) : AST::Node
+    Log.debug { "#{@doc_idx}: parse_atomic_method_suffix" }
+
     while true
       if current_token.trivia_newline
         case atomic
@@ -339,7 +362,10 @@ class Larimar::Parser
           return parse_atomic_method_suffix(atomic, dot_token)
         else
           # Don't include :OP_GRAVE
-          method_token = consume(AtomicWithMethodKinds + PseudoMethodNames)
+          method_token = consume(
+            AtomicWithMethodKinds + PseudoMethodNames,
+            msg: "expecting operator or method name"
+          )
 
           case current_token.kind
           when .op_eq?
@@ -385,6 +411,8 @@ class Larimar::Parser
   end
 
   def parse_single_arg : AST::Node
+    Log.debug { "#{@doc_idx}: parse_single_arg" }
+
     if current_token.kind.op_star?
       star = consume(:OP_STAR)
       arg = parse_op_assign_no_control
@@ -395,6 +423,8 @@ class Larimar::Parser
   end
 
   def parse_atomic : AST::Node
+    Log.debug { "#{@doc_idx}: parse_atomic" }
+
     case current_token.kind
     when .op_lparen?
       parse_parenthesized_expression
@@ -506,24 +536,31 @@ class Larimar::Parser
       parse_path
     when .vt_skipped?
       current_token_as(AST::Error)
-    when .kw_end?
-      token = Token.new(:VT_MISSING)
-      node = AST::Error.new(token)
-      add_error("unexpected 'end'")
-      node
     else
       case current_parent
       when .array?
         case current_token.kind
-        when .op_comma?
+        when .op_comma?, .op_rsquare?
           add_error("incomplete array element expression")
           return AST::Nop.new
-        when .op_rsquare?
-          return AST::Nop.new
+        end
+      when .assign?
+        if (parent_parent = @parent_nodes[-2]?)
+          case parent_parent
+          when .class?, .module?, .def?, .enum?
+            add_error("incomplete assign expression")
+            return AST::Nop.new
+          end
         end
       end
 
-      if current_token.kind.eof?
+      case current_token.kind
+      when .kw_end?
+        token = Token.new(:VT_MISSING)
+        node = AST::Error.new(token)
+        add_error("unexpected 'end'")
+        node
+      when .eof?, .op_semicolon?
         AST::Nop.new
       else
         add_error("unhandled parsing for token #{current_token.kind}")
@@ -533,6 +570,8 @@ class Larimar::Parser
   end
 
   def parse_visibility_modifier : AST::Node
+    Log.debug { "#{@doc_idx}: parse_visibility_modifier" }
+
     token = consume(:KW_PRIVATE, :KW_PROTECTED)
     value = parse_op_assign
 
@@ -540,6 +579,8 @@ class Larimar::Parser
   end
 
   def parse_var_or_call : AST::Node
+    Log.debug { "#{@doc_idx}: parse_var_or_call" }
+
     case current_token.kind
     when .kw_is_a_question?
       obj = AST::Self.new(nil)
@@ -578,6 +619,8 @@ class Larimar::Parser
   end
 
   def parse_is_a(atomic : AST::Node, dot : Token? = nil) : AST::Node
+    Log.debug { "#{@doc_idx}: parse_is_a" }
+
     token = consume(:KW_IS_A_QUESTION)
     lparen = consume?(:OP_LPAREN)
     if lparen
@@ -591,6 +634,8 @@ class Larimar::Parser
   end
 
   def parse_as(atomic : AST::Node, dot : Token? = nil) : AST::Node
+    Log.debug { "#{@doc_idx}: parse_as" }
+
     token = consume(:KW_AS)
     lparen = consume?(:OP_LPAREN)
     if lparen
@@ -604,6 +649,8 @@ class Larimar::Parser
   end
 
   def parse_as?(atomic : AST::Node, dot : Token? = nil) : AST::Node
+    Log.debug { "#{@doc_idx}: parse_as?" }
+
     token = consume(:KW_AS_QUESTION)
     lparen = consume?(:OP_LPAREN)
     if lparen
@@ -617,6 +664,8 @@ class Larimar::Parser
   end
 
   def parse_responds_to(atomic : AST::Node, dot : Token? = nil) : AST::Node
+    Log.debug { "#{@doc_idx}: parse_responds_to" }
+
     token = consume(:KW_RESPONDS_TO_QUESTION)
     lparen = consume?(:OP_LPAREN)
 
@@ -630,7 +679,9 @@ class Larimar::Parser
   end
 
   def parse_nil?(atomic : AST::Node, dot : Token? = nil) : AST::Node
-    token = consume(:KW_AS_QUESTION)
+    Log.debug { "#{@doc_idx}: parse_nil?" }
+
+    token = consume(:KW_NIL_QUESTION)
     lparen = consume?(:OP_LPAREN)
 
     if lparen
@@ -641,6 +692,8 @@ class Larimar::Parser
   end
 
   def parse_if : AST::Node
+    Log.debug { "#{@doc_idx}: parse_if" }
+
     if_token = consume(:KW_IF)
     condition = parse_op_assign_no_control # allow_suffix: false
     expressions = parse_expressions
@@ -671,6 +724,8 @@ class Larimar::Parser
   end
 
   def parse_unless : AST::Node
+    Log.debug { "#{@doc_idx}: parse_unless" }
+
     unless_token = consume(:KW_UNLESS)
     condition = parse_op_assign_no_control # allow_suffix: false
     expressions = parse_expressions
@@ -689,6 +744,8 @@ class Larimar::Parser
   end
 
   def parse_parenthesized_expression : AST::Node
+    Log.debug { "#{@doc_idx}: parse_parenthesized_expression" }
+
     lparen = consume(:OP_LPAREN)
     if current_token.kind.op_rparen?
       rparen = consume(:OP_RPAREN)
@@ -699,14 +756,15 @@ class Larimar::Parser
     rparen = Token.new(:VT_MISSING)
 
     while true
-      expressions << parse_expression
+      expression = parse_expression
+      expressions << expression
 
       if current_token.kind.op_rparen?
         rparen = consume(:OP_RPAREN)
         break
-      elsif current_token.trivia_newline ||
-            current_token.kind.op_semicolon? ||
-            current_token.kind.eof?
+      elsif current_token.kind.op_semicolon?
+        expression.semicolon = consume(:OP_SEMICOLON)
+      elsif current_token.trivia_newline
         # Keep going
       else
         # TODO: better error handling
@@ -725,6 +783,8 @@ class Larimar::Parser
   end
 
   def parse_require : AST::Node
+    Log.debug { "#{@doc_idx}: parse_require" }
+
     require_token = consume(:KW_REQUIRE)
     require_str = consume(:STRING)
 
@@ -732,6 +792,8 @@ class Larimar::Parser
   end
 
   def parse_annotation_def : AST::Node
+    Log.debug { "#{@doc_idx}: parse_annotation_def" }
+
     annotation_token = consume(:KW_ANNOTATION)
     name = parse_path
     annotation_end = consume(:KW_END)
@@ -740,6 +802,8 @@ class Larimar::Parser
   end
 
   def parse_annotation : AST::Node
+    Log.debug { "#{@doc_idx}: parse_annotation" }
+
     at_lsquare_token = consume(:OP_AT_LSQUARE)
     name = parse_path
     rsquare_token = consume(:OP_RSQUARE)
@@ -750,15 +814,19 @@ class Larimar::Parser
   end
 
   def parse_alias : AST::Node
+    Log.debug { "#{@doc_idx}: parse_alias" }
+
     alias_token = consume(:KW_ALIAS)
     name = parse_path
     equals_token = consume(:OP_EQ)
-    value = parse_bare_proc_type
+    value = with_parent(:Assign) { parse_bare_proc_type }
 
     AST::Alias.new(alias_token, name, equals_token, value)
   end
 
   def parse_empty_array_literal : AST::Node
+    Log.debug { "#{@doc_idx}: parse_empty_array_literal" }
+
     lsquare_rsquare_token = consume(:OP_LSQUARE_RSQUARE)
     of_token = consume(:KW_OF, msg: "for empty arrays use '[] of ElementType'")
     if of_token.kind.kw_of?
@@ -776,8 +844,9 @@ class Larimar::Parser
   end
 
   def parse_array_literal : AST::Node
-    lsquare_token = consume(:OP_LSQUARE)
+    Log.debug { "#{@doc_idx}: parse_array_literal" }
 
+    lsquare_token = consume(:OP_LSQUARE)
     elements = Array(Tuple(AST::Node, Token)).new
 
     while true
@@ -786,7 +855,13 @@ class Larimar::Parser
 
       if current_token.kind.op_comma?
         comma_token = consume(:OP_COMMA)
-        elements << {last_element, comma_token}
+
+        if current_token.kind.op_rsquare?
+          rsquare_token = consume(:OP_RSQUARE)
+          break
+        else
+          elements << {last_element, comma_token}
+        end
       else
         rsquare_token = consume(:OP_RSQUARE)
         break
@@ -809,6 +884,8 @@ class Larimar::Parser
   end
 
   def parse_instance_var : AST::Node
+    Log.debug { "#{@doc_idx}: parse_instance_var" }
+
     token = consume(:INSTANCE_VAR)
     node = AST::InstanceVar.new(token)
 
@@ -820,6 +897,8 @@ class Larimar::Parser
   end
 
   def parse_class_var : AST::Node
+    Log.debug { "#{@doc_idx}: parse_class_var" }
+
     token = consume(:CLASS_VAR)
     node = AST::ClassVar.new(token)
 
@@ -831,18 +910,22 @@ class Larimar::Parser
   end
 
   def parse_type_declaration(node : AST::Node) : AST::Node
+    Log.debug { "#{@doc_idx}: parse_type_declaration" }
+
     colon_token = consume(:OP_COLON)
     type_name = parse_bare_proc_type
 
     equals_token = consume?(:OP_EQ)
     if equals_token
-      value = parse_op_assign_no_control
+      value = with_parent(:Assign) { parse_op_assign_no_control }
     end
 
     AST::TypeDeclaration.new(node, colon_token, type_name, equals_token, value)
   end
 
   def parse_case : AST::Node
+    Log.debug { "#{@doc_idx}: parse_case" }
+
     case_token = consume(:KW_CASE)
 
     case current_token.kind
@@ -925,6 +1008,8 @@ class Larimar::Parser
   end
 
   def parse_select : AST::Node
+    Log.debug { "#{@doc_idx}: parse_select" }
+
     select_token = consume(:KW_SELECT)
 
     when_expressions = Array(AST::Node).new
@@ -997,6 +1082,8 @@ class Larimar::Parser
   end
 
   def parse_when_expression : AST::Node
+    Log.debug { "#{@doc_idx}: parse_when_expression" }
+
     # TODO: stuff
     parse_op_assign_no_control
   end
@@ -1015,6 +1102,8 @@ class Larimar::Parser
   end
 
   def parse_begin : AST::Node
+    Log.debug { "#{@doc_idx}: parse_begin" }
+
     begin_token = consume(:KW_BEGIN)
 
     expressions = parse_expressions
@@ -1027,6 +1116,8 @@ class Larimar::Parser
   end
 
   def parse_with : AST::Node
+    Log.debug { "#{@doc_idx}: parse_with" }
+
     with_token = consume(:KW_WITH)
     scope = parse_op_assign
 
@@ -1034,6 +1125,8 @@ class Larimar::Parser
   end
 
   def parse_yield(with_token : Token? = nil, scope : AST::Node? = nil) : AST::Node
+    Log.debug { "#{@doc_idx}: parse_yield" }
+
     yield_token = consume(:KW_YIELD)
     lparen = consume?(:OP_LPAREN)
 
@@ -1047,10 +1140,14 @@ class Larimar::Parser
   end
 
   def parse_call_args : Array(AST::Node)
+    Log.debug { "#{@doc_idx}: parse_call_args" }
+
     [] of AST::Node
   end
 
   def parse_class_def(abstract_token = nil) : AST::Node
+    Log.debug { "#{@doc_idx}: parse_class_def" }
+
     class_token = consume(:KW_CLASS)
     name = parse_path
 
@@ -1058,7 +1155,7 @@ class Larimar::Parser
       super_name = parse_path
     end
 
-    body = parse_expressions
+    body = with_parent(:Class) { parse_expressions }
     end_token = consume(:KW_END)
 
     AST::ClassDef.new(
@@ -1068,17 +1165,21 @@ class Larimar::Parser
   end
 
   def parse_module_def : AST::Node
+    Log.debug { "#{@doc_idx}: parse_module_def" }
+
     module_token = consume(:KW_MODULE)
     name = parse_path
 
     # TODO: parse_type_vars
-    body = parse_expressions
+    body = with_parent(:Module) { parse_expressions }
     end_token = consume(:KW_END)
 
     AST::ModuleDef.new(module_token, name, body, end_token)
   end
 
   def parse_include : AST::Node
+    Log.debug { "#{@doc_idx}: parse_include" }
+
     token = consume(:KW_INCLUDE)
 
     if current_token.kind.kw_self?
@@ -1093,6 +1194,8 @@ class Larimar::Parser
   end
 
   def parse_extend : AST::Node
+    Log.debug { "#{@doc_idx}: parse_extend" }
+
     token = consume(:KW_EXTEND)
 
     if current_token.kind.kw_self?
@@ -1106,6 +1209,8 @@ class Larimar::Parser
   end
 
   def parse_enum_def : AST::Node
+    Log.debug { "#{@doc_idx}: parse_enum_def" }
+
     enum_token = consume(:KW_ENUM)
     name = parse_path
 
@@ -1122,6 +1227,8 @@ class Larimar::Parser
   end
 
   def parse_enum_body_expressions : Array(AST::Node)
+    Log.debug { "#{@doc_idx}: parse_enum_body_expressions" }
+
     members = [] of AST::Node
 
     while true
@@ -1130,14 +1237,17 @@ class Larimar::Parser
         const_name = consume(:CONST)
         equals_token = consume?(:OP_EQ)
         if equals_token
-          const_value = parse_logical_or
+          const_value = with_parent(:Assign) { parse_logical_or }
         end
 
         unless current_token.trivia_newline || current_token.kind.op_semicolon? || current_token.kind.eof?
           add_error("expecting ';', 'end', or newline after enum member")
         end
 
-        members << AST::Arg.new(const_name, equals_token, const_value)
+        arg = AST::Arg.new(const_name, equals_token, const_value)
+        arg.semicolon = consume?(:OP_SEMICOLON)
+
+        members << arg
       when .kw_private?, .kw_protected?
         visibility_token = consume(:KW_PRIVATE, :KW_PROTECTED)
 
@@ -1171,7 +1281,7 @@ class Larimar::Parser
         equals_token = consume?(:OP_EQ)
 
         if equals_token
-          value = parse_op_assign
+          value = with_parent(:Assign) { parse_op_assign }
           members << AST::Assign.new(class_var, equals_token, value)
         else
           add_error("@@class_variables must be assigned inside enums")
@@ -1181,6 +1291,10 @@ class Larimar::Parser
         # when .op_lcurly_percent?
       when .op_at_lsquare?
         members << parse_annotation
+      when .op_semicolon?
+        member = AST::Nop.new
+        member.semicolon = consume(:OP_SEMICOLON)
+        members << member
       when .kw_end?, .eof?
         break
       else
@@ -1215,6 +1329,8 @@ class Larimar::Parser
   ] of TokenKind
 
   def parse_def(abstract_token : Token? = nil) : AST::Node
+    Log.debug { "#{@doc_idx}: parse_def" }
+
     def_token = consume(:KW_DEF)
 
     with_isolated_var_scope do
@@ -1230,7 +1346,10 @@ class Larimar::Parser
         add_error("'!' is a pseudo-method and can't be redefined")
         name = consume(:OP_BANG).skipped
       else
-        name = consume(DefOrMacroNameKinds)
+        name = consume(
+          DefOrMacroNameKinds,
+          msg: "expecting operator or method name"
+        )
       end
 
       equals_token = consume?(:OP_EQ)
@@ -1241,7 +1360,7 @@ class Larimar::Parser
       end
 
       if abstract_token.nil?
-        body = parse_expressions
+        body = with_parent(:Def) { parse_expressions }
         end_token = consume(:KW_END)
       end
 
@@ -1253,6 +1372,8 @@ class Larimar::Parser
   end
 
   def parse_macro : AST::Node
+    Log.debug { "#{@doc_idx}: parse_macro" }
+
     macro_token = consume(:KW_MACRO)
 
     with_isolated_var_scope do
@@ -1263,7 +1384,10 @@ class Larimar::Parser
         add_error("'!' is a pseudo-method and can't be redefined")
         name = consume(:OP_BANG).skipped
       else
-        name = consume(DefOrMacroNameKinds)
+        name = consume(
+          DefOrMacroNameKinds,
+          msg: "expecting operator or method name"
+        )
       end
 
       equals_token = consume?(:OP_EQ)
@@ -1279,6 +1403,8 @@ class Larimar::Parser
   end
 
   def parse_path : AST::Node
+    Log.debug { "#{@doc_idx}: parse_path" }
+
     start_colon = consume?(:OP_COLON_COLON)
     names = [consume(:CONST)]
 
@@ -1294,11 +1420,15 @@ class Larimar::Parser
   end
 
   def parse_bare_proc_type : AST::Node
+    Log.debug { "#{@doc_idx}: parse_bare_proc_type" }
+
     # TODO: stuff
     parse_union_type
   end
 
   def parse_union_type : AST::Node
+    Log.debug { "#{@doc_idx}: parse_union_type" }
+
     last_type = parse_atomic_type_with_suffix
     unless current_token.kind.op_bar?
       return last_type
@@ -1320,6 +1450,7 @@ class Larimar::Parser
   end
 
   def parse_atomic_type_with_suffix : AST::Node
+    Log.debug { "#{@doc_idx}: parse_atomic_type_with_suffix" }
     # TODO: stuff
     parse_path
   end

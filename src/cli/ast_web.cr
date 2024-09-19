@@ -71,9 +71,14 @@ server = HTTP::Server.new do |context|
         str << "</ul>"
       end
 
+      str << "<h4>Crystal Eval:</h4>"
+      str << "<pre style=\"font-size: 80%; white-space: pre-wrap;\"><code style=\" overflow-wrap: break-word;\">\n"
+      str << `echo '#{src}' | GC_DONT_GC=1 crystal build --stdin-filename stdin --prelude=empty --no-codegen 2>&1`
+      str << "\n</code></pre>"
+
       str << "</td><td style=\"width: 300vw;\">"
 
-      str << "<pre><code>\n"
+      str << "<pre style=\"font-size: 80%\"><code>\n"
       str << `echo '#{document.ast.to_json}' | jq`
       str << "\n</code></pre>"
 

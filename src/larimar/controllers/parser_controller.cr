@@ -10,14 +10,14 @@ class Larimar::Parser::Controller < Larimar::Controller
       LSProtocol::ServerCapabilities.new(
         text_document_sync: LSProtocol::TextDocumentSyncKind::Incremental,
         # document_formatting_provider: true,
-        semantic_tokens_provider: LSProtocol::SemanticTokensOptions.new(
-          legend: LSProtocol::SemanticTokensLegend.new(
-            token_types: LSProtocol::SemanticTokenTypes.names.map(&.downcase),
-            token_modifiers: LSProtocol::SemanticTokenModifiers.names.map(&.downcase),
-          ),
-          full: true,
-          range: false,
-        )
+        # semantic_tokens_provider: LSProtocol::SemanticTokensOptions.new(
+        #   legend: LSProtocol::SemanticTokensLegend.new(
+        #     token_types: LSProtocol::SemanticTokenTypes.names.map(&.downcase),
+        #     token_modifiers: LSProtocol::SemanticTokenModifiers.names.map(&.downcase),
+        #   ),
+        #   full: true,
+        #   range: false,
+        # )
       )
     )
   end
