@@ -575,5 +575,12 @@ class Larimar::Parser
       def initialize(@token)
       end
     end
+
+    class MagicConstant < Node
+      getter token : Token
+
+      def initialize(@token)
+      end
+    end
   end
 end

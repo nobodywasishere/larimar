@@ -363,7 +363,7 @@ class Larimar::Parser
         else
           # Don't include :OP_GRAVE
           method_token = consume(
-            AtomicWithMethodKinds + PseudoMethodNames,
+            AtomicWithMethodKinds + PseudoMethodNames + KeywordKinds,
             msg: "expecting operator or method name"
           )
 
@@ -450,6 +450,8 @@ class Larimar::Parser
       current_token_as(AST::Error)
     when .op_dollar_tilde?, .op_dollar_question?
       current_token_as(AST::Var)
+    when .magic_dir?, .magic_end_line?, .magic_file?, .magic_line?
+      current_token_as(AST::MagicConstant)
     when .kw_begin?
       parse_begin
     when .kw_nil?
@@ -534,7 +536,7 @@ class Larimar::Parser
     when .const?
       # parse_generic_or_custom_literal
       parse_path
-    when .vt_skipped?
+    when .vt_skipped?, .vt_missing?
       current_token_as(AST::Error)
     else
       case current_parent
@@ -964,7 +966,7 @@ class Larimar::Parser
           # Added to this parser over the stdlib one as this happens
           # often when writing case statements
           case current_token.kind
-          when .kw_when?, .kw_in?, .kw_end?, .kw_then?, .eof?
+          when .kw_when?, .kw_in?, .kw_end?, .kw_then?, .eof?, .kw_else?
             if exhaustive
               add_error("empty 'in' condition")
             else
@@ -1308,7 +1310,7 @@ class Larimar::Parser
 
   # IDENT CONST ` << < <= == === != =~ !~ >> > >= + - * / // ! ~ % & | ^ ** [] []? []= <=> &+ &- &* &**
   DefOrMacroNameKinds = begin
-    AtomicWithMethodKinds + PseudoMethodNames + [:OP_GRAVE] of TokenKind
+    AtomicWithMethodKinds + KeywordKinds + PseudoMethodNames + [:OP_GRAVE] of TokenKind
   end
 
   AtomicWithMethodKinds = [
@@ -1321,6 +1323,22 @@ class Larimar::Parser
     :OP_LT_EQ_GT, :OP_LT_EQ, :OP_LT_LT, :OP_LT,
     :OP_MINUS, :OP_PERCENT, :OP_PLUS,
     :OP_SLASH_SLASH, :OP_SLASH, :OP_STAR_STAR, :OP_STAR, :OP_TILDE,
+  ] of TokenKind
+
+  KeywordKinds = [
+    :KW_ABSTRACT, :KW_ALIAS, :KW_ALIGNOF, :KW_ANNOTATION,
+    :KW_ASM, :KW_BEGIN, :KW_BREAK, :KW_CASE, :KW_CLASS,
+    :KW_DEF, :KW_DO, :KW_ELSE, :KW_ELSIF, :KW_END, :KW_ENSURE,
+    :KW_ENUM, :KW_EXTEND, :KW_FALSE, :KW_FOR, :KW_FORALL,
+    :KW_FUN, :KW_IF, :KW_IN, :KW_INCLUDE, :KW_INSTANCE_ALIGNOF,
+    :KW_INSTANCE_SIZEOF, :KW_LIB, :KW_MACRO, :KW_MODULE,
+    :KW_NEXT, :KW_NIL, :KW_OF, :KW_OFFSETOF, :KW_OUT,
+    :KW_POINTEROF, :KW_PRIVATE, :KW_PROTECTED, :KW_REQUIRE,
+    :KW_RESCUE, :KW_RETURN, :KW_SELECT, :KW_SELF, :KW_SIZEOF,
+    :KW_STRUCT, :KW_SUPER, :KW_THEN, :KW_TRUE, :KW_TYPE,
+    :KW_TYPEOF, :KW_UNINITIALIZED, :KW_UNION, :KW_UNLESS,
+    :KW_UNTIL, :KW_VERBATIM, :KW_WHEN, :KW_WHILE, :KW_WITH,
+    :KW_YIELD,
   ] of TokenKind
 
   PseudoMethodNames = [

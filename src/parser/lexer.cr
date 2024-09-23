@@ -469,8 +469,17 @@ class Larimar::Parser
       when '"'
         next_char
         skip_past('"')
-        next_char
-        new_token(:STRING)
+        if reader.eof?
+          add_error("unterminated string literal")
+          Token.new(
+            :VT_MISSING, start - full_start - 1,
+            @reader.pos - full_start - 1,
+            trivia_newline
+          )
+        else
+          next_char
+          new_token(:STRING)
+        end
       when '`'
         next_char
         skip_past('`')
