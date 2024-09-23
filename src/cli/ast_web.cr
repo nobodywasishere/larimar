@@ -1,6 +1,26 @@
 require "http/server"
 require "../larimar"
 
+class TimeoutError < Exception; end
+
+def with_timeout(time : Time::Span, &block)
+  channel = Channel(Exception?).new
+
+  spawn do
+    block.call
+    channel.send(nil)
+  rescue error
+    channel.send(error)
+  end
+
+  select
+  when error = channel.receive?
+    raise error if error
+  when timeout(time)
+    raise TimeoutError.new
+  end
+end
+
 html = <<-HTML
 <!DOCTYPE html>
 
@@ -39,7 +59,9 @@ server = HTTP::Server.new do |context|
 
     document = Larimar::Parser::Document.new(src)
     elapsed_time = Time.measure do
-      Larimar::Parser.parse_full(document)
+      with_timeout(1.second) do
+        Larimar::Parser.parse_full(document)
+      end
     end
 
     result = String.build do |str|
@@ -73,7 +95,7 @@ server = HTTP::Server.new do |context|
 
       str << "<h4>Crystal Eval:</h4>"
       str << "<pre style=\"font-size: 80%; white-space: pre-wrap;\"><code style=\" overflow-wrap: break-word;\">\n"
-      str << `echo '#{src}' | GC_DONT_GC=1 crystal build --stdin-filename stdin --prelude=empty --no-codegen 2>&1`
+      str << `echo '#{src}' | GC_DONT_GC=1 crystal build --stdin-filename stdin --no-codegen 2>&1`
       str << "\n</code></pre>"
 
       str << "</td><td style=\"width: 300vw;\">"
