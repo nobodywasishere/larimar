@@ -166,7 +166,7 @@ class Larimar::Parser
         @doc_idx - path_size - 1, path_size
       )
     when AST::Var, AST::InstanceVar, AST::ClassVar
-      atomic_name = @document.slice(
+      @document.slice(
         @doc_idx - node.token.text_length - 1, node.token.text_length
       )
     end
@@ -450,8 +450,11 @@ class Larimar::Parser
       current_token_as(AST::Error)
     when .op_dollar_tilde?, .op_dollar_question?
       current_token_as(AST::Var)
-    when .magic_dir?, .magic_end_line?, .magic_file?, .magic_line?
+    when .magic_dir?, .magic_file?, .magic_line?
       current_token_as(AST::MagicConstant)
+    when .magic_end_line?
+      add_error("__END_LINE__ can only be used in default parameter value")
+      current_token_as(AST::Error)
     when .kw_begin?
       parse_begin
     when .kw_nil?
@@ -961,6 +964,7 @@ class Larimar::Parser
         # if condition.is_a?(AST::TupleLiteral)
         when_conditions = Array(Tuple(AST::Node, Token)).new
         then_token = nil
+        last_condition = nil
 
         while true
           # Added to this parser over the stdlib one as this happens
@@ -1028,6 +1032,7 @@ class Larimar::Parser
         when_token = consume(:KW_WHEN, :KW_IN)
         when_conditions = Array(Tuple(AST::Node, Token)).new
         then_token = nil
+        last_condition = nil
 
         while true
           # Added to this parser over the stdlib one as this happens
@@ -1246,7 +1251,7 @@ class Larimar::Parser
           add_error("expecting ';', 'end', or newline after enum member")
         end
 
-        arg = AST::Arg.new(const_name, equals_token, const_value)
+        arg = AST::Arg.new(nil, const_name, equals_token, const_value)
         arg.semicolon = consume?(:OP_SEMICOLON)
 
         members << arg
@@ -1372,9 +1377,38 @@ class Larimar::Parser
 
       equals_token = consume?(:OP_EQ)
 
+      params = [] of AST::Node
+
+      case current_token.kind
+      when .op_lparen?
+        while !current_token.kind.op_rparen?
+          params << parse_param
+        end
+      when .op_semicolon?, .op_colon?
+        # Skip
+      when .op_amp?
+        # TODO: add error for mandatory parethesis
+      when .symbol?
+        # TODO: add error "a space is mandatory between ':' and return type"
+      when .eof?
+      else
+        if current_token.trivia_newline || abstract_token
+          # OK
+        else
+          add_error("Unexpected token.")
+          params << AST::Error.new(current_token)
+          next_token
+        end
+      end
+
       return_colon = consume?(:OP_COLON)
       if return_colon
         return_type = parse_bare_proc_type
+      end
+
+      forall_token = consume?(:KW_FORALL)
+      if forall_token
+        free_vars = parse_def_free_vars
       end
 
       if abstract_token.nil?
@@ -1384,9 +1418,67 @@ class Larimar::Parser
 
       return AST::Def.new(
         abstract_token, def_token, receiver, receiver_dot, name, equals_token,
-        nil, return_colon, return_type, body, end_token
+        params, return_colon, return_type, forall_token, free_vars, body, end_token
       )
     end
+  end
+
+  def parse_def_free_vars : Array(Token)
+    free_vars = [] of Token
+    free_var_names = [] of String
+
+    while true
+      free_var = consume(:CONST)
+      free_var_name = @document.slice(
+        @doc_idx - free_var.text_length - current_token.start,
+        free_var.text_length
+      )
+
+      if free_var_names.includes?(free_var_name)
+        add_error(
+          "duplicated free variable name: #{free_var_name}",
+          location: @doc_idx - free_var.text_length - current_token.start
+        )
+      end
+
+      free_var_names << (free_var_name || "")
+      free_vars << free_var
+
+      if current_token.kind.op_comma?
+        free_vars << consume(:OP_COMMA)
+      else
+        break
+      end
+    end
+
+    free_vars
+  end
+
+  def parse_param : AST::Node
+    annotations = nil
+    while current_token.kind.op_at_lsquare?
+      (annotations ||= Array(AST::Node).new) << parse_annotation
+    end
+
+    allow_external_name = true
+    splat_token = nil
+
+    case current_token.kind
+    when .op_star?
+      allow_external_name = false
+      splat_token = consume(:OP_STAR)
+    when .op_star_star?
+      allow_external_name = false
+      splat_token = consume(:OP_STAR_STAR)
+    end
+
+    if splat_token.try(&.kind.op_star?) && (current_token.kind.op_comma? || current_token.kind.op_rparen?)
+      param_name = nil
+      allow_restrictions = false
+    else
+    end
+
+    AST::Nop.new
   end
 
   def parse_macro : AST::Node

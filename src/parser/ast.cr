@@ -354,11 +354,16 @@ class Larimar::Parser
     end
 
     class Arg < Node
+      getter annotations : Array(Node)?
+      getter splat : Token?
       getter name : Token
+      getter ext_name : Token?
+      getter colon : Token?
+      getter restriction : Node?
       getter equals_token : Token?
       getter value : Node?
 
-      def initialize(@name, @equals_token, @value)
+      def initialize(@annotations, @name, @equals_token, @value)
       end
     end
 
@@ -416,16 +421,18 @@ class Larimar::Parser
       getter receiver_dot : Token?
       getter name : Token?
       getter equals : Token?
-      getter args : Array(Node)?
+      getter params : Array(Node)?
       getter return_colon : Token?
       getter return_type : Node?
+      getter forall_token : Token?
+      getter free_vars : Array(Token)?
       getter body : Node?
       getter end_token : Token?
 
       def initialize(
         @abstract_token, @def_token, @receiver, @receiver_dot,
-        @name, @equals, @args, @return_colon, @return_type,
-        @body, @end_token
+        @name, @equals, @params, @return_colon, @return_type,
+        @forall_token, @free_vars, @body, @end_token
       )
       end
     end
