@@ -36,7 +36,8 @@ class Larimar::Parser
     property parse_errors : Array(ParserError) = Array(ParserError).new
 
     def initialize(document : String, version : Int32 = 0)
-      @chars = document.chars
+      # lsp uses utf-16 by default
+      @chars = document.to_utf16.map(&.unsafe_chr).to_a
       @pos = 0
       @version = version
     end
@@ -73,7 +74,7 @@ class Larimar::Parser
     end
 
     def update_whole(text : String, version : Int32 = 0)
-      @chars = text.chars
+      @chars = text.to_utf16.map(&.unsafe_chr).to_a
       @pos = 0
       @version = version
     end

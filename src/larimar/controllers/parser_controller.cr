@@ -97,7 +97,7 @@ class Larimar::Parser::Controller < Larimar::Controller
       line_diff = line_count - prev_position.line
 
       if line_diff > 0 && slice.includes?('\n')
-        colm_count = slice.size - slice.rindex('\n').not_nil! - 1
+        colm_count = slice.size - slice.rindex!('\n') - 1
       else
         colm_count += token.start + prev_token_length
       end
@@ -115,7 +115,7 @@ class Larimar::Parser::Controller < Larimar::Controller
 
       line_count += slice.count('\n')
       if slice.includes?('\n')
-        colm_count = slice.size - slice.rindex('\n').not_nil! - 1
+        colm_count = slice.size - slice.rindex!('\n') - 1
       end
 
       doc_idx += token.length

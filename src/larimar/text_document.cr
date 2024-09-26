@@ -28,7 +28,6 @@ class Larimar::TextDocument
   end
 
   def update_contents(change : LSProtocol::TextDocumentContentChangePartial)
-    text = change.text
     range = change.range
 
     prefix = @inner_contents[range.start.line]?.try(&.[...range.start.character].chomp) || ""
