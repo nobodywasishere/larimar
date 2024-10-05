@@ -40,7 +40,7 @@ class Larimar::CrystalController < Larimar::Controller
     Log.error { "Unhandled request message #{message.class.to_s.split("::").last}" }
   end
 
-  def on_request(message : LSProtocol::TextDocumentFormattingRequest)
+  def on_request(message : LSProtocol::DocumentFormattingRequest)
     @pending_requests << message.id
 
     params = message.params
@@ -60,7 +60,7 @@ class Larimar::CrystalController < Larimar::Controller
       return
     end
 
-    LSProtocol::TextDocumentFormattingResponse.new(
+    LSProtocol::DocumentFormattingResponse.new(
       id: message.id,
       result: [
         LSProtocol::TextEdit.new(
@@ -76,7 +76,7 @@ class Larimar::CrystalController < Larimar::Controller
     @pending_requests.delete(message.id)
   end
 
-  def on_request(message : LSProtocol::TextDocumentDocumentSymbolRequest)
+  def on_request(message : LSProtocol::DocumentSymbolRequest)
     @pending_requests << message.id
 
     params = message.params
@@ -105,7 +105,7 @@ class Larimar::CrystalController < Larimar::Controller
       GC.enable
     end
 
-    LSProtocol::TextDocumentDocumentSymbolResponse.new(
+    LSProtocol::DocumentSymbolResponse.new(
       id: message.id,
       result: symbols
     )
@@ -113,7 +113,7 @@ class Larimar::CrystalController < Larimar::Controller
     @pending_requests.delete(message.id)
   end
 
-  def on_request(message : LSProtocol::TextDocumentSemanticTokensFullRequest)
+  def on_request(message : LSProtocol::SemanticTokensRequest)
     @pending_requests << message.id
 
     params = message.params
@@ -144,14 +144,14 @@ class Larimar::CrystalController < Larimar::Controller
       GC.enable
     end
 
-    LSProtocol::TextDocumentPublishDiagnosticsNotification.new(
+    LSProtocol::PublishDiagnosticsNotification.new(
       params: LSProtocol::PublishDiagnosticsParams.new(
         diagnostics: diagnostics,
         uri: document_uri
       )
     )
 
-    LSProtocol::TextDocumentSemanticTokensFullResponse.new(
+    LSProtocol::SemanticTokensResponse.new(
       id: message.id,
       result: LSProtocol::SemanticTokens.new(
         data: tokens.map(&.to_a).flatten
@@ -171,7 +171,7 @@ class Larimar::CrystalController < Larimar::Controller
     # TODO: Enable setting the log level via `message.params.value` ('off' | 'messages' | 'verbose')
   end
 
-  def on_notification(message : LSProtocol::TextDocumentDidOpenNotification) : Nil
+  def on_notification(message : LSProtocol::DidOpenTextDocumentNotification) : Nil
     params = message.params
     document_uri = params.text_document.uri
 
@@ -184,7 +184,7 @@ class Larimar::CrystalController < Larimar::Controller
     }
   end
 
-  def on_notification(message : LSProtocol::TextDocumentDidCloseNotification) : Nil
+  def on_notification(message : LSProtocol::DidCloseTextDocumentNotification) : Nil
     params = message.params
     document_uri = params.text_document.uri
 
@@ -197,7 +197,7 @@ class Larimar::CrystalController < Larimar::Controller
     end
   end
 
-  def on_notification(message : LSProtocol::TextDocumentDidChangeNotification) : Nil
+  def on_notification(message : LSProtocol::DidChangeTextDocumentNotification) : Nil
     params = message.params
     document_uri = params.text_document.uri
     changes = params.content_changes
@@ -211,10 +211,10 @@ class Larimar::CrystalController < Larimar::Controller
     end
   end
 
-  def on_notification(message : LSProtocol::TextDocumentDidSaveNotification) : Nil
+  def on_notification(message : LSProtocol::DidSaveTextDocumentNotification) : Nil
   end
 
-  def on_notification(message : LSProtocol::WorkspaceDidChangeWatchedFilesNotification) : Nil
+  def on_notification(message : LSProtocol::DidChangeWatchedFilesNotification) : Nil
   end
 
   # Responses

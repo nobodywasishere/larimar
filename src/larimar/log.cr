@@ -16,7 +16,7 @@ class Larimar::LogBackend < ::Log::IOBackend
                    else
                      LSProtocol::MessageType::Log
                    end
-    log_message = LSProtocol::WindowLogMessageNotification.new(
+    log_message = LSProtocol::LogMessageNotification.new(
       params: LSProtocol::LogMessageParams.new(type: message_type, message: format(entry)),
     )
     @server.send_msg(log_message, log: false)

@@ -61,7 +61,7 @@ class Larimar::Parser::Controller < Larimar::Controller
   #   @pending_requests.delete(message.id)
   # end
 
-  def on_request(message : LSProtocol::TextDocumentSemanticTokensFullRequest)
+  def on_request(message : LSProtocol::SemanticTokensRequest)
     @pending_requests << message.id
 
     params = message.params
@@ -74,7 +74,7 @@ class Larimar::Parser::Controller < Larimar::Controller
       tokens = document.semantic_tokens
     end
 
-    LSProtocol::TextDocumentSemanticTokensFullResponse.new(
+    LSProtocol::SemanticTokensResponse.new(
       id: message.id,
       result: LSProtocol::SemanticTokens.new(
         data: tokens.map(&.to_a).flatten
@@ -197,15 +197,11 @@ class Larimar::Parser::Controller < Larimar::Controller
 
   # Notifications
 
-  def on_notification(message : LSProtocol::Notification) : Nil
-    Log.error { "Unhandled notification message #{message.class.to_s.split("::").last}" }
-  end
-
   def on_notification(message : LSProtocol::SetTraceNotification) : Nil
     # TODO: Enable setting the log level via `message.params.value` ('off' | 'messages' | 'verbose')
   end
 
-  def on_notification(message : LSProtocol::TextDocumentDidOpenNotification) : Nil
+  def on_notification(message : LSProtocol::DidOpenTextDocumentNotification) : Nil
     params = message.params
     document_uri = params.text_document.uri
 
@@ -225,7 +221,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     @documents[document_uri] = document
   end
 
-  def on_notification(message : LSProtocol::TextDocumentDidCloseNotification) : Nil
+  def on_notification(message : LSProtocol::DidCloseTextDocumentNotification) : Nil
     params = message.params
     document_uri = params.text_document.uri
 
@@ -237,7 +233,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     end
   end
 
-  def on_notification(message : LSProtocol::TextDocumentDidChangeNotification) : Nil
+  def on_notification(message : LSProtocol::DidChangeTextDocumentNotification) : Nil
     params = message.params
     document_uri = params.text_document.uri
     changes = params.content_changes
@@ -264,15 +260,15 @@ class Larimar::Parser::Controller < Larimar::Controller
     end
   end
 
-  def on_notification(message : LSProtocol::TextDocumentDidSaveNotification) : Nil
+  def on_notification(message : LSProtocol::DidSaveTextDocumentNotification) : Nil
   end
 
-  def on_notification(message : LSProtocol::WorkspaceDidChangeWatchedFilesNotification) : Nil
+  def on_notification(message : LSProtocol::DidChangeWatchedFilesNotification) : Nil
   end
 
   def update_errors(document_uri, diagnostics)
     server.send_msg(
-      LSProtocol::TextDocumentPublishDiagnosticsNotification.new(
+      LSProtocol::PublishDiagnosticsNotification.new(
         params: LSProtocol::PublishDiagnosticsParams.new(
           diagnostics: diagnostics,
           uri: document_uri
