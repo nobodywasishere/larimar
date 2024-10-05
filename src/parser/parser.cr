@@ -34,7 +34,21 @@ class Larimar::Parser
   end
 
   def parse : AST::Node
-    parse_expressions
+    ast = AST::Expressions.new([] of AST::Node)
+
+    while true
+      ast.children.concat(parse_expressions.children)
+
+      if current_token.kind.eof?
+        break
+      else
+        add_error("unexpected token")
+        ast.children << AST::Error.new(current_token)
+        next_token
+      end
+    end
+
+    ast
   end
 
   def parse_expressions : AST::Node
@@ -86,9 +100,17 @@ class Larimar::Parser
         atomic_name = get_atomic_name(atomic)
         break unless atomic_name
 
+        if atomic.is_a?(AST::Call) && atomic.name.kind.op_lsquare_rsquare?
+          atomic.equals = consume(:OP_EQ)
+          atomic.args << parse_op_assign_no_control
+          next
+        end
+
         if atomic.is_a?(AST::Self) || (atomic.is_a?(AST::Var) && (token = atomic.token) && token.kind.kw_self?)
           add_error("can't change the value of self")
         end
+
+        atomic = AST::Var.new(atomic.name) if atomic.is_a?(AST::Call)
 
         case atomic
         when AST::Path
@@ -168,6 +190,25 @@ class Larimar::Parser
     when AST::Var, AST::InstanceVar, AST::ClassVar
       @document.slice(
         @doc_idx - node.token.text_length - 1, node.token.text_length
+      )
+    when AST::Call
+      if node.args.empty? && !node.lparen && !node.block
+        @document.slice(
+          @doc_idx - node.name.text_length - 1, node.name.text_length
+        )
+      end
+    end
+  end
+
+  def get_token_name(token : Token) : String?
+    case token.kind
+    when .string?
+      @document.slice(
+        @doc_idx - token.text_length, token.text_length - 2
+      )
+    when .ident?, .keyword?, .instance_var?, .class_var?
+      @document.slice(
+        @doc_idx - token.text_length - 1, token.text_length
       )
     end
   end
@@ -386,11 +427,11 @@ class Larimar::Parser
               args << parse_single_arg
             end
 
-            atomic = AST::Call.new(atomic, dot_token, equals_token, lparen, args, rparen)
+            atomic = AST::Call.new(atomic, dot_token, equals_token, lparen, args, rparen, nil)
           when .assignment_operator?
             # TODO: how is this code called???
-            # value = parse_op_assign
-            # atomic = AST::OpAssign.new(atomic, dot_token, method_token, value)
+            value = parse_op_assign
+            atomic = AST::OpAssign.new(atomic, dot_token, method_token, value)
           else
           end
         end
@@ -563,7 +604,7 @@ class Larimar::Parser
       when .kw_end?
         token = Token.new(:VT_MISSING)
         node = AST::Error.new(token)
-        add_error("unexpected 'end'")
+        add_error("expecting an expression")
         node
       when .eof?, .op_semicolon?
         AST::Nop.new
@@ -583,35 +624,114 @@ class Larimar::Parser
     AST::VisibilityModifier.new(token, value)
   end
 
-  def parse_var_or_call : AST::Node
+  def parse_var_or_call(
+    obj : AST::Node? = nil, dot : Token? = nil,
+    force_call : Bool = false, global : Bool = false
+  ) : AST::Node
     Log.debug { "#{@doc_idx}: parse_var_or_call" }
 
     case current_token.kind
+    when .op_bang?
+      # Should only trigger from `parse_when_expression`
+      obj ||= AST::Self.new(nil)
+      return parse_negation_suffix(obj: obj, dot: dot)
     when .kw_is_a_question?
-      obj = AST::Self.new(nil)
-      return parse_is_a(obj)
+      obj ||= AST::Self.new(nil)
+      return parse_is_a(obj, dot: dot)
     when .kw_as?
-      obj = AST::Self.new(nil)
-      return parse_as(obj)
+      obj ||= AST::Self.new(nil)
+      return parse_as(obj, dot: dot)
     when .kw_as_question?
-      obj = AST::Self.new(nil)
-      return parse_as?(obj)
+      obj ||= AST::Self.new(nil)
+      return parse_as?(obj, dot: dot)
     when .kw_responds_to_question?
-      obj = AST::Self.new(nil)
-      return parse_responds_to(obj)
+      obj ||= AST::Self.new(nil)
+      return parse_responds_to(obj, dot: dot)
     when .kw_nil_question?
       # TODO: unless in macro exp
-      obj = AST::Self.new(nil)
-      return parse_nil?(obj)
+      obj ||= AST::Self.new(nil)
+      return parse_nil?(obj, dot: dot)
     end
 
     name_token = consume(:IDENT)
     # NOTE: no way to do this without pulling the actual string
-    name_str = @document.slice(@doc_idx - name_token.text_length, name_token.text_length)
+    name_str = @document.slice(@doc_idx - name_token.text_length - 1, name_token.text_length)
 
     is_var = var?(name_str)
+    if is_var && ([TokenKind::OP_PLUS, TokenKind::OP_MINUS].includes?(peek_next_token.kind))
+      return current_token_as(AST::Var)
+    end
 
-    AST::Var.new(name_token)
+    # TODO: some regex stuff
+
+    # TODO: preserve stop on do
+    call_args = parse_call_args
+
+    # TODO: some block handling stuff
+    args : Array(AST::Node)? = nil
+    block = nil
+    block_arg = nil
+    named_args = nil
+
+    obj ||= AST::Nop.new
+
+    if block || block_arg || global
+      AST::Call.new(
+        obj: obj, dot: dot, name: name_token,
+        lparen: nil, args: args || [] of AST::Node, rparen: nil,
+        block: block
+      )
+    elsif args
+      if !force_call && is_var
+        AST::Var.new(name_token)
+      else
+        AST::Call.new(
+          obj: obj, dot: dot, name: name_token,
+          lparen: nil, args: args, rparen: nil,
+          block: block
+        )
+      end
+    elsif current_token.kind.op_colon? # and no type declaration
+      var = parse_type_declaration(AST::Var.new(name_token))
+
+      # TODO: don't push var if it's directly as an arg of a call
+      push_var(name_str) # unless @call_args_start_locations.includes?(location)
+
+      var
+    elsif !force_call && is_var
+      # TODO: some block stuff
+      AST::Var.new(name_token)
+    else
+      # TODO: figure out how i want to handle this
+      if !force_call && !named_args && !global && false # && @assigned_vars.includes?(name_str)
+        add_error("can't use variable inside assignment to itself")
+      end
+
+      AST::Call.new(
+        obj: obj, dot: dot, name: name_token,
+        lparen: nil, args: [] of AST::Node, rparen: nil,
+        block: block
+      )
+    end
+  end
+
+  def parse_negation_suffix(obj : AST::Node? = nil, dot : Token? = nil) : AST::Node
+    bang = consume(:OP_BANG)
+
+    lparen = consume?(:OP_LPAREN)
+    if lparen
+      rparen = consume(:OP_RPAREN)
+    end
+
+    AST::Call.new(
+      obj: obj || AST::Nop.new,
+      dot: dot,
+      name: bang,
+      lparen: lparen,
+      args: [] of AST::Node,
+      rparen: rparen,
+      block: nil
+    )
   end
 
   def var?(name : String) : Bool
@@ -620,6 +740,7 @@ class Larimar::Parser
   end
 
   def var_in_scope?(name : String) : Bool
+    Log.debug(&.emit("#{@doc_idx}: var_in_scope?", name: name, scopes: @var_scopes.to_json))
     @var_scopes.last.includes?(name)
   end
 
@@ -980,9 +1101,9 @@ class Larimar::Parser
             then_token = consume?(:KW_THEN)
             last_condition = AST::Nop.new
             break
+          else
+            last_condition = parse_when_expression(!!condition, single: true, exhaustive: exhaustive)
           end
-
-          last_condition = parse_when_expression
 
           if (then_token = consume?(:KW_THEN)) || current_token.trivia_newline ||
              current_token.kind.op_semicolon? || current_token.kind.eof?
@@ -1088,11 +1209,38 @@ class Larimar::Parser
     AST::Select.new(select_token, when_expressions, else_node, end_token)
   end
 
-  def parse_when_expression : AST::Node
+  def parse_when_expression(condition : Bool, single : Bool, exhaustive : Bool) : AST::Node
     Log.debug { "#{@doc_idx}: parse_when_expression" }
 
-    # TODO: stuff
-    parse_op_assign_no_control
+    if current_token.kind.op_period?
+      if !condition
+        add_error("implicit when expressions require a condition")
+      end
+
+      dot_token = consume(:OP_PERIOD)
+      call = parse_var_or_call(obj: AST::ImplicitObj.new, dot: dot_token, force_call: true)
+
+      case call
+      when AST::Call, AST::RespondsTo, AST::IsA, AST::Cast, AST::NilableCast
+      when AST::Var
+        # TODO: patch until `parse_var_or_call` is looked at
+      when AST::Not
+        # call.expression = AST::ImplicitObj.new
+      else
+        add_error("expected Call, RespondsTo, IsA, Cast, or Nilable")
+      end
+
+      call
+    elsif single && current_token.kind.underscore?
+      if exhaustive
+        add_error("'when _' is not supported")
+      else
+        add_error("'when _' is not supported, use 'else' block instead")
+      end
+      current_token_as(AST::Error)
+    else
+      parse_op_assign_no_control
+    end
   end
 
   def valid_select_when?(node : AST::Node)
@@ -1377,13 +1525,34 @@ class Larimar::Parser
 
       equals_token = consume?(:OP_EQ)
 
-      params = [] of AST::Node
+      params = [] of {AST::Node, Token}
+      last_param = nil
 
       case current_token.kind
       when .op_lparen?
+        lparen = consume(:OP_LPAREN)
+
         while !current_token.kind.op_rparen?
-          params << parse_param
+          last_param = parse_param
+
+          if current_token.kind.op_rparen? || current_token.kind.eof?
+            break
+          elsif current_token.kind.op_comma?
+            comma = consume(:OP_COMMA)
+            params << {last_param, comma}
+            last_param = nil
+
+            if current_token.kind.op_rparen? || current_token.kind.eof?
+              add_error("expected param")
+              last_param = AST::Error.new(Token.new(:VT_MISSING))
+            end
+          else
+            add_error("unexpected token")
+            params << {current_token_as(AST::Error), Token.new(:VT_MISSING)}
+          end
         end
+
+        rparen = consume(:OP_RPAREN)
       when .op_semicolon?, .op_colon?
         # Skip
       when .op_amp?
@@ -1395,8 +1564,8 @@ class Larimar::Parser
         if current_token.trivia_newline || abstract_token
           # OK
         else
-          add_error("Unexpected token.")
-          params << AST::Error.new(current_token)
+          add_error("unexpected token")
+          params << {AST::Error.new(current_token), Token.new(:VT_MISSING)}
           next_token
         end
       end
@@ -1418,12 +1587,15 @@ class Larimar::Parser
 
       return AST::Def.new(
         abstract_token, def_token, receiver, receiver_dot, name, equals_token,
-        params, return_colon, return_type, forall_token, free_vars, body, end_token
+        lparen, params, last_param, rparen, return_colon, return_type,
+        forall_token, free_vars, body, end_token
       )
     end
   end
 
   def parse_def_free_vars : Array(Token)
+    Log.debug { "#{@doc_idx}: parse_def_free_vars" }
+
     free_vars = [] of Token
     free_var_names = [] of String
 
@@ -1455,12 +1627,15 @@ class Larimar::Parser
   end
 
   def parse_param : AST::Node
+    Log.debug { "#{@doc_idx}: parse_param" }
+
     annotations = nil
     while current_token.kind.op_at_lsquare?
       (annotations ||= Array(AST::Node).new) << parse_annotation
     end
 
     allow_external_name = true
+    allow_restrictions = true
     splat_token = nil
 
     case current_token.kind
@@ -1476,9 +1651,114 @@ class Larimar::Parser
       param_name = nil
       allow_restrictions = false
     else
+      external_name, external_str, param_name, param_str = parse_param_name(allow_external_name)
     end
 
-    AST::Nop.new
+    restriction = nil
+    if current_token.kind.op_colon?
+      if !allow_restrictions
+        add_error("restrictions not allowed for this parameter")
+      end
+
+      colon_token = consume(:OP_COLON)
+
+      # TODO: handle splat restrictions
+      restriction = parse_bare_proc_type
+    end
+
+    default_value = nil
+    if current_token.kind.op_eq?
+      equals_token = consume(:OP_EQ)
+
+      if splat_token.try(&.kind.op_star?)
+        add_error("splat parameter can't have default value")
+      elsif splat_token.try(&.kind.op_star_star?)
+        add_error("double splat parameter can't have default value")
+      end
+
+      if current_token.kind.magic?
+        default_value = current_token_as(AST::MagicConstant)
+      else
+        default_value = parse_op_assign
+      end
+    end
+
+    push_var(param_str) if param_str
+
+    AST::Arg.new(
+      annotations: annotations, splat: splat_token,
+      ext_name: external_name, name: param_name,
+      colon: colon_token, restriction: restriction,
+      equals_token: equals_token, value: default_value
+    )
+  end
+
+  def parse_param_name(allow_external_name : Bool) : {Token?, String?, Token?, String?}
+    Log.debug { "#{@doc_idx}: parse_param_name" }
+
+    external_name = nil
+    external_str = nil
+    param_name = nil
+    param_str = nil
+
+    if allow_external_name
+      external_name = consume?(TokenKind::IDENT, TokenKind::STRING)
+      external_str = get_token_name(external_name) if external_name
+    end
+
+    case current_token.kind
+    when .ident?
+      # if current_token.kind.keyword?
+      #   add_error("cannot use keyword as a parameter name")
+      # end
+
+      loc = @doc_idx
+      param_name = consume(:IDENT)
+      param_str = get_token_name(param_name)
+
+      if param_str == external_str
+        add_error(
+          "when specified, external name must be different than internal name",
+          location: loc
+        )
+      end
+    when .instance_var?
+      loc = @doc_idx
+      param_name = next_token
+      param_str = get_token_name(param_name).try &.[1..-1]
+
+      if param_str == external_str
+        add_error(
+          "when specified, external name must be different than internal name",
+          location: loc
+        )
+      end
+    when .class_var?
+      loc = @doc_idx
+      param_name = next_token
+      param_str = get_token_name(param_name).try &.[2..-1]
+
+      if param_str == external_str
+        add_error(
+          "when specified, external name must be different than internal name",
+          location: loc
+        )
+      end
+    else
+      if external_name
+        if external_name.kind.string?
+          add_error("expected paramater internal name")
+          param_name = Token.new(:VT_MISSING)
+        else
+          param_name = external_name
+          param_str = external_str
+          external_name = nil
+          external_str = nil
+        end
+      end
+    end
+
+    {external_name, external_str, param_name, param_str}
   end
 
   def parse_macro : AST::Node
@@ -1649,6 +1929,10 @@ class Larimar::Parser
     @doc_idx += current_token.start
 
     current_token
+  end
+
+  def peek_next_token : Token
+    @tokens[@tokens_idx + 1]? || Token.new(:VT_MISSING)
   end
 
   def end_token? : Bool

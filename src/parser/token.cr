@@ -27,7 +27,7 @@ class Larimar::Parser
     end
 
     def to_json(json : JSON::Builder) : Nil
-      json.string(@kind.to_s)
+      json.string(@kind.to_s + " (#{length})")
     end
   end
 end

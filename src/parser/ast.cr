@@ -330,16 +330,18 @@ class Larimar::Parser
       getter lparen : Token?
       getter args : Array(Node)
       getter rparen : Token?
+      getter block : Node?
+      property equals : Token?
 
-      def initialize(@obj, @dot, @name, @lparen, @args, @rparen)
+      def initialize(@obj, @dot, @name, @lparen, @args, @rparen, @block)
       end
 
       def self.new(obj : Node, name : Token, arg : Node)
-        new(obj, nil, name, nil, [arg] of Node, nil)
+        new(obj, nil, name, nil, [arg] of Node, nil, nil)
       end
 
       def self.new(obj : Node, name : Token, *, dot : Token? = nil)
-        new(obj, dot, name, nil, [] of Node, nil)
+        new(obj, dot, name, nil, [] of Node, nil, nil)
       end
     end
 
@@ -356,14 +358,20 @@ class Larimar::Parser
     class Arg < Node
       getter annotations : Array(Node)?
       getter splat : Token?
-      getter name : Token
       getter ext_name : Token?
+      getter name : Token?
       getter colon : Token?
       getter restriction : Node?
       getter equals_token : Token?
       getter value : Node?
 
       def initialize(@annotations, @name, @equals_token, @value)
+      end
+
+      def initialize(
+        @annotations, @splat, @ext_name, @name,
+        @colon, @restriction, @equals_token, @value
+      )
       end
     end
 
@@ -421,7 +429,10 @@ class Larimar::Parser
       getter receiver_dot : Token?
       getter name : Token?
       getter equals : Token?
-      getter params : Array(Node)?
+      getter lparen : Token?
+      getter params : Array(Tuple(Node, Token))?
+      getter last_param : Node?
+      getter rparen : Token?
       getter return_colon : Token?
       getter return_type : Node?
       getter forall_token : Token?
@@ -431,7 +442,7 @@ class Larimar::Parser
 
       def initialize(
         @abstract_token, @def_token, @receiver, @receiver_dot,
-        @name, @equals, @params, @return_colon, @return_type,
+        @name, @equals, @lparen, @params, @last_param, @rparen, @return_colon, @return_type,
         @forall_token, @free_vars, @body, @end_token
       )
       end
@@ -587,6 +598,11 @@ class Larimar::Parser
       getter token : Token
 
       def initialize(@token)
+      end
+    end
+
+    class ImplicitObj < Node
+      def initialize
       end
     end
   end

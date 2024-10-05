@@ -216,6 +216,14 @@ class Larimar::Parser::Controller < Larimar::Controller
       self.class.generate_diagnostics(document)
 
       update_errors(document_uri, document.diagnostics)
+      # rescue ex : TimeoutError
+      #   Log.error(&.emit(
+      #     "infinite loop detected",
+      #     data: {
+      #       message:   ex.message,
+      #       backtrace: ex.inspect_with_backtrace,
+      #     }
+      #   ))
     end
 
     @documents[document_uri] = document
@@ -257,6 +265,14 @@ class Larimar::Parser::Controller < Larimar::Controller
       self.class.generate_diagnostics(document)
 
       update_errors(document_uri, document.diagnostics)
+      # rescue ex : TimeoutError
+      # Log.error(&.emit(
+      #   "infinite loop detected",
+      #   data: {
+      #     message:   ex.message,
+      #     backtrace: ex.inspect_with_backtrace,
+      #   }
+      # ))
     end
   end
 

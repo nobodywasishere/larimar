@@ -201,6 +201,10 @@ class Larimar::Parser
       self.in?(OP_BANG, OP_PLUS, OP_MINUS, OP_TILDE, OP_AMP_PLUS, OP_AMP_MINUS)
     end
 
+    def magic?
+      self.in?(MAGIC_DIR..MAGIC_LINE)
+    end
+
     def assignment_operator?
       # += -= *= /= //= %= |= &= ^= **= <<= >>= ||= &&= &+= &-= &*=
       case self

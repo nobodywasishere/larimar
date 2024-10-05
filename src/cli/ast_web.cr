@@ -95,7 +95,7 @@ server = HTTP::Server.new do |context|
 
       str << "<h4>Crystal Eval:</h4>"
       str << "<pre style=\"font-size: 80%; white-space: pre-wrap;\"><code style=\" overflow-wrap: break-word;\">\n"
-      str << `echo '#{src}' | GC_DONT_GC=1 crystal build --stdin-filename stdin --no-codegen 2>&1`
+      str << `echo '#{src}' | GC_DONT_GC=1 time crystal build --stdin-filename stdin --no-codegen 2>&1`
       str << "\n</code></pre>"
 
       str << "</td><td style=\"width: 300vw;\">"
@@ -129,6 +129,8 @@ rescue ex
   context.response.content_type = "text/html; charset=utf-8"
   context.response.print result
 end
+
+::Log.setup_from_env
 
 address = server.bind_tcp(8080)
 puts "Listening on http://#{address}"
