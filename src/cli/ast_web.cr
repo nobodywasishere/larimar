@@ -77,8 +77,8 @@ server = HTTP::Server.new do |context|
         str << "<h4>Lexer Errors:</h4>"
 
         str << "<ul>"
-        document.lex_errors.each do |le|
-          str << "<li>#{le.pos}: #{le.message}</li>"
+        document.lex_errors.each do |err|
+          str << "<li>#{err.pos}: #{err.message}</li>"
         end
         str << "</ul>"
       end
@@ -87,8 +87,8 @@ server = HTTP::Server.new do |context|
         str << "<h4>Parser Errors:</h4>"
 
         str << "<ul>"
-        document.parse_errors.each do |le|
-          str << "<li>#{le.pos}: #{le.message}</li>"
+        document.parse_errors.each do |err|
+          str << "<li>#{err.pos}: #{err.message}</li>"
         end
         str << "</ul>"
       end
@@ -120,8 +120,8 @@ rescue ex
   result = String.build do |str|
     str << "<pre><code>\n"
     str << ex << "\n  "
-    ex.backtrace.each do |bt|
-      str << bt << "\n  "
+    ex.backtrace.each do |trace|
+      str << trace << "\n  "
     end
     str << "\n</code></pre>"
   end

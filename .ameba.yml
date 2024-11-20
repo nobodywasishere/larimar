@@ -14,6 +14,8 @@ Naming/BlockParameterName:
   AllowedNames:
     - e
     - i
+    - b
+    - t
     - j
     - k
     - v
@@ -52,7 +54,7 @@ Documentation/DocumentationAdmonition:
     - TODO
     - FIXME
     - BUG
-  Enabled: true
+  Enabled: false
   Severity: Warning
 
 # Problems found: 6
