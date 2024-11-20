@@ -18,8 +18,8 @@ class Larimar::Server
 
     begin
       controller.when_ready
-    rescue exc
-      Log.error(exception: exc) { "Error during initialization: #{exc}" }
+    rescue ex
+      Log.error(exception: ex) { "Error during initialization: #{ex}" }
       return
     end
 
@@ -78,7 +78,7 @@ class Larimar::Server
         # leading to a zombie process being leftover even if the client is closed.
         # Shutdown after 3 seconds regardless
         spawn do
-          sleep 3
+          sleep(3.seconds)
           exit
         end
       when LSProtocol::Request

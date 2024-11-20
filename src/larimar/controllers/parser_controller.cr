@@ -68,7 +68,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     document_uri = params.text_document.uri
     tokens = [] of SemanticToken
 
-    return unless (document = @documents[document_uri]?)
+    return unless document = @documents[document_uri]?
 
     document.mutex.synchronize do
       tokens = document.semantic_tokens
@@ -77,7 +77,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     LSProtocol::SemanticTokensResponse.new(
       id: message.id,
       result: LSProtocol::SemanticTokens.new(
-        data: tokens.map(&.to_a).flatten
+        data: tokens.flat_map(&.to_a)
       )
     )
   end
@@ -233,7 +233,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     params = message.params
     document_uri = params.text_document.uri
 
-    return unless (document = @documents[document_uri]?)
+    return unless document = @documents[document_uri]?
 
     document.mutex.synchronize do
       @documents.delete(document_uri)
@@ -246,7 +246,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     document_uri = params.text_document.uri
     changes = params.content_changes
 
-    return unless (document = @documents[document_uri]?)
+    return unless document = @documents[document_uri]?
 
     document.mutex.synchronize do
       changes.each do |change|

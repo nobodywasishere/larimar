@@ -920,7 +920,7 @@ class Larimar::Parser
             scan_ident_token
           end
         else
-          unless ident_part?
+          if !ident_part?
             new_token(:UNDERSCORE)
           else
             scan_ident_token
@@ -949,6 +949,7 @@ class Larimar::Parser
       Log.error(exception: ex) { "Error when lexing next token: #{ex.message}\n#{ex.backtrace.join("\n")}" }
       add_error(ex.message || "Error when lexing")
 
+      # ameba:disable Lint/NotNil
       full_start = full_start.not_nil!
       trivia_newline = trivia_newline.nil? ? false : trivia_newline
 
