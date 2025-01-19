@@ -31,9 +31,7 @@ describe Larimar::Parser::Document do
     doc.next_char
     doc.current_char.should eq('\0')
 
-    expect_raises(IndexError) {
-      doc.next_char
-    }
+    expect_raises(IndexError) { doc.next_char }
   end
 
   it "can be updated with changes" do

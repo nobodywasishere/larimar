@@ -108,10 +108,10 @@ class Larimar::Server
 
     json = message.to_json
 
-    @output_lock.synchronize {
+    @output_lock.synchronize do
       @output << "Content-Length: #{json.bytesize}\r\n\r\n#{json}"
       @output.flush
-    }
+    end
   end
 
   def recv_msg : LSProtocol::Message
