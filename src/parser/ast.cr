@@ -109,7 +109,7 @@ class Larimar::Parser
 
       def initialize(
         @left_bracket, @elements, @last_element, @right_bracket,
-        @of_token, @type_name
+        @of_token, @type_name,
       )
       end
     end
@@ -196,7 +196,7 @@ class Larimar::Parser
 
       def initialize(
         @abstract_keyword, @class_keyword, @name, @super_arrow, @super_name,
-        @body, @end_token
+        @body, @end_token,
       )
       end
     end
@@ -370,7 +370,7 @@ class Larimar::Parser
 
       def initialize(
         @annotations, @splat, @ext_name, @name,
-        @colon, @restriction, @equals_token, @value
+        @colon, @restriction, @equals_token, @value,
       )
       end
     end
@@ -443,7 +443,7 @@ class Larimar::Parser
       def initialize(
         @abstract_token, @def_token, @receiver, @receiver_dot,
         @name, @equals, @lparen, @params, @last_param, @rparen, @return_colon, @return_type,
-        @forall_token, @free_vars, @body, @end_token
+        @forall_token, @free_vars, @body, @end_token,
       )
       end
     end
@@ -458,7 +458,7 @@ class Larimar::Parser
 
       def initialize(
         @macro_token, @name, @equals, @args,
-        @body, @end_token
+        @body, @end_token,
       )
       end
     end

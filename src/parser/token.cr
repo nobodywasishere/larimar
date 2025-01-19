@@ -14,7 +14,7 @@ class Larimar::Parser
 
     def initialize(
       @kind : TokenKind, @start = 0, @length = 0,
-      @trivia_newline = false
+      @trivia_newline = false,
     )
     end
 

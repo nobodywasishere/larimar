@@ -626,7 +626,7 @@ class Larimar::Parser
 
   def parse_var_or_call(
     obj : AST::Node? = nil, dot : Token? = nil,
-    force_call : Bool = false, global : Bool = false
+    force_call : Bool = false, global : Bool = false,
   ) : AST::Node
     Log.debug { "#{@doc_idx}: parse_var_or_call" }
 

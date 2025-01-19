@@ -95,7 +95,7 @@ class Larimar::SemanticTokensVisitor < Crystal::Visitor
   private def node_to_token(
     node : Crystal::ASTNode, prev : Crystal::Location,
     type : LSProtocol::SemanticTokenTypes = :type,
-    mods : LSProtocol::SemanticTokenModifiers = :none
+    mods : LSProtocol::SemanticTokenModifiers = :none,
   ) : SemanticToken?
     curr = node.location
     cend = node.end_location
