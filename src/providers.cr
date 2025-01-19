@@ -9,6 +9,9 @@ class Provider
 
   def on_change(document : Larimar::TextDocument) : Nil
   end
+
+  def on_close(document : Larimar::TextDocument) : Nil
+  end
 end
 
 module DocumentSymbolProvider

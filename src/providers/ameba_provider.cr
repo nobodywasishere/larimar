@@ -68,6 +68,17 @@ class AmebaProvider < Provider
     handle_ameba(document)
   end
 
+  def on_close(document : Larimar::TextDocument) : Nil
+    controller.server.send_msg(
+      LSProtocol::PublishDiagnosticsNotification.new(
+        params: LSProtocol::PublishDiagnosticsParams.new(
+          diagnostics: [] of LSProtocol::Diagnostic,
+          uri: document.uri
+        )
+      )
+    )
+  end
+
   private def handle_ameba(document : Larimar::TextDocument) : Nil
     source = Ameba::Source.new(document.to_s, document.uri.path)
     formatter = DiagnosticsFormatter.new

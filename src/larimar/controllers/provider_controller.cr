@@ -63,6 +63,10 @@ class Larimar::ProviderController < Larimar::Controller
 
     document.mutex.synchronize do
       @documents.delete(document_uri)
+
+      @providers.each do |provider|
+        provider.on_close(document)
+      end
     end
   end
 
