@@ -3,6 +3,8 @@ require "json"
 require "uri"
 require "lsprotocol"
 
+require "./cancellation_token"
+
 require "./parser/document"
 require "./parser/lexer"
 require "./parser/token_kind"
@@ -16,6 +18,8 @@ require "./larimar/workspace"
 # require "./larimar/compiler"
 require "./larimar/server"
 require "./larimar/controller"
+
+require "./providers"
 
 # require "./larimar/analysis/document_symbols_visitor"
 # require "./larimar/analysis/semantic_tokens_visitor"

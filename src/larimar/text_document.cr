@@ -1,51 +1,103 @@
 class Larimar::TextDocument
+  Log = ::Larimar::Log.for(self)
+
+  @chars : Array(Char)
+
   getter uri : URI
-  property cached_symbols : Array(LSProtocol::SymbolInformation)?
-  property cached_semantic_tokens : Array(Larimar::Parser::SemanticToken)?
+  getter version : Int32
+  getter mutex : Mutex = Mutex.new
 
-  @inner_contents : Array(String) = Array(String).new
-
-  def initialize(@uri : URI, contents : String)
-    self.contents = contents
+  def initialize(document : String, @uri : URI, @version : Int32 = 0)
+    # lsp uses utf-16 by default
+    @chars = document.to_utf16.map(&.unsafe_chr).to_a
   end
 
-  def contents : String
-    @inner_contents.join
+  def update_partial(range : LSProtocol::Range, text : String, version : Int32 = 0) : Nil
+    start_pos = position_to_index(range.start)
+    end_pos = position_to_index(range.end)
+
+    @chars[start_pos...end_pos] = text.chars
+    @version = version
   end
 
-  def line_count : UInt32
-    @inner_contents.size.to_u32
+  def update_whole(text : String, version : Int32 = 0)
+    @chars = text.to_utf16.map(&.unsafe_chr).to_a
+    @version = version
   end
 
-  def contents=(contents : String)
-    @inner_contents = contents.lines(chomp: false)
-  end
-
-  def update_contents(changes : Array(LSProtocol::TextDocumentContentChangeEvent))
-    changes.each do |change|
-      update_contents(change)
+  def to_s(io : IO)
+    @chars.each do |char|
+      io << char
     end
   end
 
-  def update_contents(change : LSProtocol::TextDocumentContentChangePartial)
-    range = change.range
+  def to_s : String
+    mem = IO::Memory.new
 
-    prefix = @inner_contents[range.start.line]?.try(&.[...range.start.character].chomp) || ""
-    suffix = @inner_contents[range.end.line]?.try(&.[range.end.character..]?) ||
-             @inner_contents[range.end.line]? || ""
+    to_s(mem)
 
-    change_lines = String.build do |b|
-      b << prefix
-      b << change.text
-      b << suffix
-    end.lines(chomp: false)
-
-    @inner_contents = (@inner_contents[...range.start.line]? || [] of String) +
-                      change_lines +
-                      (@inner_contents[range.end.line + 1...]? || [] of String)
+    mem.to_s
   end
 
-  def update_contents(change : LSProtocol::TextDocumentContentChangeWholeDocument)
-    self.contents = change.text
+  def position_to_index(position : LSProtocol::Position) : Int32
+    line = 0
+    colm = 0
+    posi = 0
+
+    if position.line == line && position.character == colm
+      return posi
+    end
+
+    @chars.each do |char|
+      case char
+      when '\n'
+        line += 1
+        colm = 0
+      else
+        colm += 1
+      end
+
+      posi += 1
+
+      if position.line == line && position.character == colm
+        return posi
+      end
+    end
+
+    raise IndexError.new("#{position.line},#{position.character} not in document")
+  end
+
+  def index_to_position(index : Int32) : LSProtocol::Position
+    line = 0
+    colm = 0
+    posi = 0
+
+    if posi == index
+      return LSProtocol::Position.new(
+        line: line.to_u32,
+        character: colm.to_u32
+      )
+    end
+
+    @chars.each do |char|
+      case char
+      when '\n'
+        line += 1
+        colm = 0
+      else
+        colm += 1
+      end
+
+      posi += 1
+
+      if posi == index
+        return LSProtocol::Position.new(
+          line: line.to_u32,
+          character: colm.to_u32
+        )
+      end
+    end
+
+    raise IndexError.new("#{index} not in document")
   end
 end

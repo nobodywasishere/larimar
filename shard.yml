@@ -7,6 +7,8 @@ authors:
 dependencies:
   lsprotocol:
     github: nobodywasishere/lsprotocol-crystal
+  ameba:
+    github: crystal-ameba/ameba
 
 targets:
   larimar:
