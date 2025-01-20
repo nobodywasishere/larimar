@@ -28,5 +28,5 @@ abstract class Larimar::Controller
 end
 
 # require "./controllers/crystal_controller"
-# require "./controllers/parser_controller"
+require "./controllers/parser_controller"
 require "./controllers/provider_controller"
