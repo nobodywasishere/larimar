@@ -9,6 +9,8 @@ dependencies:
     github: nobodywasishere/lsprotocol-crystal
   ameba:
     github: crystal-ameba/ameba
+  tree_sitter:
+    github: crystal-lang-tools/crystal-tree-sitter
 
 targets:
   larimar:

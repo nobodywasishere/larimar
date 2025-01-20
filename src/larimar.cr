@@ -3,6 +3,7 @@ require "json"
 require "uri"
 require "lsprotocol"
 require "ameba"
+require "tree_sitter"
 
 require "./cancellation_token"
 

@@ -8,3 +8,7 @@ shards:
     git: https://github.com/nobodywasishere/lsprotocol-crystal.git
     version: 0.1.0+git.commit.7f36ed016862b32d32befe1d3786658cfc67a84b
 
+  tree_sitter:
+    git: https://github.com/crystal-lang-tools/crystal-tree-sitter.git
+    version: 0.1.0+git.commit.6132f0eda747c599504dd4dc14ce128aade48ed0
+

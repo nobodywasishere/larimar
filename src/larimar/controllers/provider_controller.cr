@@ -25,6 +25,16 @@ class Larimar::ProviderController < Larimar::Controller
         folding_range_provider: @providers.any?(FoldingRangeProvider),
         hover_provider: @providers.any?(HoverProvider),
         inlay_hint_provider: @providers.any?(InlayHintProvider),
+        semantic_tokens_provider: if @providers.any?(SemanticTokensProvider)
+          LSProtocol::SemanticTokensOptions.new(
+            legend: LSProtocol::SemanticTokensLegend.new(
+              token_types: LSProtocol::SemanticTokenTypes.names.map(&.downcase),
+              token_modifiers: LSProtocol::SemanticTokenModifiers.names.map(&.downcase),
+            ),
+            full: true,
+            range: false,
+          )
+        end,
       )
     )
   end
@@ -290,6 +300,33 @@ class Larimar::ProviderController < Larimar::Controller
     LSProtocol::DocumentFormattingResponse.new(
       id: message.id,
       result: edits
+    )
+  end
+
+  def on_request(message : LSProtocol::SemanticTokensRequest)
+    @pending_requests << message.id
+
+    params = message.params
+    document_uri = params.text_document.uri
+    tokens = Array(SemanticTokensProvider::SemanticToken).new
+
+    return unless document = @documents[document_uri]?
+
+    document.mutex.synchronize do
+      @providers.each do |provider|
+        if provider.is_a?(SemanticTokensProvider)
+          if result = provider.provide_semantic_tokens(document, nil)
+            tokens.concat result
+          end
+        end
+      end
+    end
+
+    LSProtocol::SemanticTokensResponse.new(
+      id: message.id,
+      result: LSProtocol::SemanticTokens.new(
+        data: tokens.flat_map(&.to_a)
+      )
     )
   end
 end
