@@ -32,8 +32,9 @@ class CrystalProvider < Provider
         label: ": ?",
         position: LSProtocol::Position.new(
           line: (node.location.try(&.line_number.to_u32) || 1_u32) - 1,
-          character: (node.location.try(&.column_number.to_u32) || 1_u32) + node.name.size,
+          character: (node.location.try(&.column_number.to_u32) || 2_u32) + node.name.size - 1,
         ),
+        padding_left: true,
         padding_right: true
       )
     end
