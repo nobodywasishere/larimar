@@ -13,6 +13,7 @@ class Larimar::TextDocument
   end
 
   def update_partial(range : LSProtocol::Range, text : String, version : Int32 = 0) : Nil
+    @ameba_source = nil
     start_pos = position_to_index(range.start)
     end_pos = position_to_index(range.end)
 
@@ -20,7 +21,8 @@ class Larimar::TextDocument
     @version = version
   end
 
-  def update_whole(text : String, version : Int32 = 0)
+  def update_whole(text : String, version : Int32 = 0) : Nil
+    @ameba_source = nil
     @chars = text.to_utf16.map(&.unsafe_chr).to_a
     @version = version
   end
@@ -99,5 +101,14 @@ class Larimar::TextDocument
     end
 
     raise IndexError.new("#{index} not in document")
+  end
+
+  @ameba_source : Ameba::Source?
+
+  def ameba_source : Ameba::Source
+    @ameba_source ||= Ameba::Source.new(
+      self.to_s,
+      self.uri.path
+    )
   end
 end

@@ -2,6 +2,7 @@ require "log"
 require "json"
 require "uri"
 require "lsprotocol"
+require "ameba"
 
 require "./cancellation_token"
 

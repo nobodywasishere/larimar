@@ -7,5 +7,6 @@ backend = Larimar::LogBackend.new(server, formatter: Larimar::LogFormatter)
 
 controller = Larimar::ProviderController.new
 controller.register_provider(AmebaProvider.new)
+controller.register_provider(CrystalProvider.new)
 
 server.start(controller)
