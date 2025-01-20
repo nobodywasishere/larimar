@@ -14,7 +14,7 @@ class Larimar::ProviderController < Larimar::Controller
     LSProtocol::InitializeResult.new(
       LSProtocol::ServerCapabilities.new(
         text_document_sync: LSProtocol::TextDocumentSyncKind::Incremental,
-        document_formatting_provider: false,
+        document_formatting_provider: @providers.any?(FormattingProvider),
         document_symbol_provider: @providers.any?(DocumentSymbolProvider),
         completion_provider: if @providers.any?(CompletionItemProvider)
           LSProtocol::CompletionOptions.new(
@@ -173,7 +173,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     document.mutex.synchronize do
       @providers.each do |provider|
-        if provider.is_a?(CompletionItemProvider)
+        if provider.is_a?(DefinitionProvider)
           if result = provider.provide_definition(document, position, nil)
             definition = result
             break
@@ -199,7 +199,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     document.mutex.synchronize do
       @providers.each do |provider|
-        if provider.is_a?(CompletionItemProvider)
+        if provider.is_a?(FoldingRangeProvider)
           if result = provider.provide_folding_ranges(document, nil)
             folding_ranges.push result
           end
@@ -225,7 +225,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     document.mutex.synchronize do
       @providers.each do |provider|
-        if provider.is_a?(CompletionItemProvider)
+        if provider.is_a?(HoverProvider)
           if result = provider.provide_hover(document, position, nil)
             hover = result
             break
@@ -252,9 +252,9 @@ class Larimar::ProviderController < Larimar::Controller
 
     document.mutex.synchronize do
       @providers.each do |provider|
-        if provider.is_a?(CompletionItemProvider)
+        if provider.is_a?(InlayHintProvider)
           if result = provider.provide_inlay_hints(document, range, nil)
-            inlay_hints.push result
+            inlay_hints.concat result
           end
         end
       end
@@ -272,14 +272,14 @@ class Larimar::ProviderController < Larimar::Controller
     params = message.params
     document_uri = params.text_document.uri
     options = params.options
-    edits : Array(LSProtocol::TextEdit)? = nil
+    edits = Array(LSProtocol::TextEdit).new
 
     return unless document = @documents[document_uri]?
 
     document.mutex.synchronize do
       @providers.each do |provider|
-        if provider.is_a?(CompletionItemProvider)
-          if result = provider.provide_inlay_hints(document, options, nil)
+        if provider.is_a?(FormattingProvider)
+          if result = provider.provide_document_formatting_edits(document, options, nil)
             edits = result
             break
           end
