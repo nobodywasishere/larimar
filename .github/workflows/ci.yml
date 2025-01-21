@@ -43,3 +43,5 @@ jobs:
         run: shards install
       - name: Run tests
         run: crystal spec
+      - name: Ameba lints
+        run: ./bin/ameba -c .ameba.yml
