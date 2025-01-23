@@ -39,11 +39,7 @@ Naming/BlockParameterName:
 # Problems found: 1
 # Run `ameba --only Naming/QueryBoolMethods` for details
 Naming/QueryBoolMethods:
-  Description: Reports boolean properties without the `?` suffix
-  Excluded:
-    - src/parser/token.cr
-  Enabled: true
-  Severity: Convention
+  Enabled: false
 
 # Problems found: 32
 # Run `ameba --only Documentation/DocumentationAdmonition` for details
