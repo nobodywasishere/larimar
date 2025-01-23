@@ -127,7 +127,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     params = message.params
     document_uri = params.text_document.uri
-    symbols = [] of LSProtocol::SymbolInformation
+    symbols = [] of LSProtocol::DocumentSymbol
 
     return unless document = @documents[document_uri]?
 

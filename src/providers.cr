@@ -18,7 +18,7 @@ module DocumentSymbolProvider
   abstract def provide_document_symbols(
     document : Larimar::TextDocument,
     token : CancellationToken?,
-  ) : Array(LSProtocol::SymbolInformation)?
+  ) : Array(LSProtocol::DocumentSymbol)?
 end
 
 module CompletionItemProvider
