@@ -1,4 +1,6 @@
 class CrystalProvider < Provider
+  Log = ::Larimar::Log.for(self)
+
   include FormattingProvider
   include InlayHintProvider
 
@@ -29,7 +31,7 @@ class CrystalProvider < Provider
 
     def to_inlay_hint(node : Crystal::Var) : LSProtocol::InlayHint
       LSProtocol::InlayHint.new(
-        label: ": ?",
+        label: " : ?",
         position: LSProtocol::Position.new(
           line: (node.location.try(&.line_number.to_u32) || 1_u32) - 1,
           character: (node.location.try(&.column_number.to_u32) || 2_u32) + node.name.size - 1,

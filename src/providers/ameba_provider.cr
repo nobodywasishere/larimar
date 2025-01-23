@@ -13,6 +13,8 @@ class Ameba::Config
 end
 
 class AmebaProvider < Provider
+  Log = ::Larimar::Log.for(self)
+
   class DiagnosticsFormatter < Ameba::Formatter::BaseFormatter
     getter diagnostics : Array(LSProtocol::Diagnostic) = Array(LSProtocol::Diagnostic).new
     @mutex : Mutex = Mutex.new
