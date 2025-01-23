@@ -1,15 +1,17 @@
 class Larimar::ProviderController < Larimar::Controller
   Log = ::Larimar::Log.for(self)
 
-  @client_capabilities : LSProtocol::ClientCapabilities?
+  getter capabilities : LSProtocol::ClientCapabilities?
+  getter workspace_folders : Array(LSProtocol::WorkspaceFolder)?
 
   @pending_requests : Set(Int32 | String) = Set(Int32 | String).new
   @documents : Hash(URI, TextDocument) = Hash(URI, TextDocument).new
 
   @providers : Array(Provider) = Array(Provider).new
 
-  def on_init(capabilites : LSProtocol::ClientCapabilities) : LSProtocol::InitializeResult
-    @client_capabilities = capabilites
+  def on_init(init_params : LSProtocol::InitializeParams) : LSProtocol::InitializeResult
+    @capabilities = init_params.capabilities
+    @workspace_folders = init_params.workspace_folders
 
     LSProtocol::InitializeResult.new(
       LSProtocol::ServerCapabilities.new(

@@ -33,7 +33,7 @@ class Larimar::Server
 
       case init_msg
       when LSProtocol::InitializeRequest
-        init_result : LSProtocol::InitializeResult = controller.on_init(init_msg.params.capabilities)
+        init_result : LSProtocol::InitializeResult = controller.on_init(init_msg.params)
 
         response = LSProtocol::InitializeResponse.new(
           id: init_msg.id,

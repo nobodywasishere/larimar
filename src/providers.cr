@@ -1,5 +1,5 @@
 class Provider
-  property! controller : Larimar::Controller
+  property! controller : Larimar::ProviderController
 
   def on_open(document : Larimar::TextDocument) : Nil
   end

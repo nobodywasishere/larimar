@@ -5,7 +5,7 @@ class Larimar::Parser::Controller < Larimar::Controller
   @pending_requests : Set(Int32 | String) = Set(Int32 | String).new
   @documents : Hash(URI, Parser::Document) = Hash(URI, Parser::Document).new
 
-  def on_init(capabilites : LSProtocol::ClientCapabilities) : LSProtocol::InitializeResult
+  def on_init(init_params : LSProtocol::InitializeParams) : LSProtocol::InitializeResult
     LSProtocol::InitializeResult.new(
       LSProtocol::ServerCapabilities.new(
         text_document_sync: LSProtocol::TextDocumentSyncKind::Incremental,

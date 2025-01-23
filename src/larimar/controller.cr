@@ -3,7 +3,7 @@ abstract class Larimar::Controller
 
   property! server : Larimar::Server
 
-  abstract def on_init(capabilites : LSProtocol::ClientCapabilities) : LSProtocol::InitializeResult
+  abstract def on_init(init_params : LSProtocol::InitializeParams) : LSProtocol::InitializeResult
 
   def when_ready
   end
