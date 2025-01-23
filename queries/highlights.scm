@@ -119,12 +119,6 @@
 (operator) @operator
 
 [
-  ","
-  ";"
-  "."
-] @operator
-
-[
   "("
   ")"
   "["
@@ -195,6 +189,9 @@
 (call
   method: (_) @function)
 
+(assign_call
+  method: (_) @function)
+
 (implicit_object_call
   method: (_) @function)
 
@@ -214,6 +211,11 @@
 ;;     method: (_) @keyword
 ;;     (#match? @keyword "record"))
 
-(identifier) @variable
+(param
+  name: (_) @parameter)
 
-(param) @parameter
+(named_expr
+	name: (_) @parameter
+    ":" @parameter)
+
+(identifier) @variable
