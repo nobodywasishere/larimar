@@ -7,6 +7,8 @@ require "tree_sitter"
 
 require "./cancellation_token"
 
+require "./ext/visitor"
+
 require "./parser/document"
 require "./parser/lexer"
 require "./parser/token_kind"

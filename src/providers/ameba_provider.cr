@@ -18,9 +18,12 @@ class AmebaProvider < Provider
   class DiagnosticsFormatter < Ameba::Formatter::BaseFormatter
     getter diagnostics : Array(LSProtocol::Diagnostic) = Array(LSProtocol::Diagnostic).new
     @mutex : Mutex = Mutex.new
+    property cancellation_token : CancellationToken?
 
     def source_finished(source : Ameba::Source) : Nil
       source.issues.each do |issue|
+        cancellation_token.try &.cancelled!
+
         start_location = LSProtocol::Position.new(
           line: (issue.location.try(&.line_number.to_u32) || 1_u32) - 1,
           character: (issue.location.try(&.column_number.to_u32) || 1_u32) - 1,
@@ -103,7 +106,10 @@ class AmebaProvider < Provider
     # Disabling these as they're common when typing
     config.update_rules(%w(Lint/Formatting Layout/TrailingBlankLines Layout/TrailingWhitespace), enabled: false)
 
-    Ameba::Runner.new(config).run
+    begin
+      Ameba::Runner.new(config).run
+    rescue CancellationException
+    end
 
     controller.server.send_msg(
       LSProtocol::PublishDiagnosticsNotification.new(

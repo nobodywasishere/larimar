@@ -28,6 +28,8 @@ class TreeSitterProvider < Provider
     prev_position = LSProtocol::Position.new(0, 0)
 
     cursor.each_capture do |capture|
+      return tokens if token.try(&.cancelled?)
+
       next unless type = LSProtocol::SemanticTokenTypes.parse?(capture.rule)
 
       position = LSProtocol::Position.new(
@@ -75,6 +77,8 @@ class TreeSitterProvider < Provider
     folds = Array(LSProtocol::FoldingRange).new
 
     cursor.each_capture do |capture|
+      return folds if token.try(&.cancelled?)
+
       next unless capture.rule.starts_with?("fold")
 
       folds << LSProtocol::FoldingRange.new(
@@ -114,6 +118,8 @@ class TreeSitterProvider < Provider
     curr_details = %w()
 
     cursor.each_capture do |capture|
+      return symbols if token.try(&.cancelled?)
+
       case capture.rule
       when "context"
         curr_details << capture.text(source).strip

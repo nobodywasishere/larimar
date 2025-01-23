@@ -15,11 +15,16 @@ class CrystalProvider < Provider
     @[YAML::Field(ignore: true)]
     property inlay_range : LSProtocol::Range?
 
+    @[YAML::Field(ignore: true)]
+    property cancellation_token : CancellationToken?
+
     def test(source)
       Ameba::AST::ScopeVisitor.new self, source
     end
 
     def test(source, node, scope : Ameba::AST::Scope)
+      cancellation_token.try(&.cancelled!)
+
       return if scope.lib_def?(check_outer_scopes: true)
       return unless location = node.location
 

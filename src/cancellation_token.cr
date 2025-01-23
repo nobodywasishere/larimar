@@ -30,7 +30,7 @@ class CancellationToken
   end
 
   def cancelled! : Nil
-    raise CancellationException
+    raise CancellationException.new
   end
 end
 
