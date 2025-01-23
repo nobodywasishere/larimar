@@ -94,7 +94,7 @@ class AmebaProvider < Provider
       break
     end
 
-    Log.info(&.emit("Running ameba", source: document.uri.path, config: config_path))
+    Log.debug(&.emit("Running ameba", source: document.uri.path, config: config_path))
 
     config = Ameba::Config.load(path: config_path)
     config.sources = [source]

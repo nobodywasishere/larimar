@@ -213,7 +213,7 @@ class Larimar::ProviderController < Larimar::Controller
       @providers.each do |provider|
         if provider.is_a?(FoldingRangeProvider)
           if result = provider.provide_folding_ranges(document, nil)
-            folding_ranges.push result
+            folding_ranges.concat result
           end
         end
       end

@@ -2,6 +2,7 @@ class TreeSitterProvider < Provider
   Log = ::Larimar::Log.for(self)
 
   include SemanticTokensProvider
+  include FoldingRangeProvider
 
   CrystalParser = TreeSitter::Parser.new("crystal")
 
@@ -54,5 +55,36 @@ class TreeSitterProvider < Provider
     end
 
     tokens
+  end
+
+  def provide_folding_ranges(
+    document : Larimar::TextDocument,
+    token : CancellationToken?,
+  ) : Array(LSProtocol::FoldingRange)?
+    tree = CrystalParser.parse(nil, document.to_s)
+
+    query = TreeSitter::Query.new(
+      CrystalParser.language,
+      File.read("#{__DIR__}/../../queries/folds.scm")
+    )
+
+    cursor = TreeSitter::QueryCursor.new(query)
+    cursor.exec(tree.root_node)
+
+    folds = Array(LSProtocol::FoldingRange).new
+
+    cursor.each_capture do |capture|
+      next unless capture.rule.starts_with?("fold")
+
+      folds << LSProtocol::FoldingRange.new(
+        start_line: capture.node.start_point.row.to_u32,
+        start_character: capture.node.start_point.column.to_u32,
+        end_line: capture.node.end_point.row.to_u32,
+        end_character: capture.node.end_point.column.to_u32,
+        kind: capture.rule.lchop?("fold.")
+      )
+    end
+
+    folds
   end
 end
