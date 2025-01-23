@@ -8,8 +8,7 @@ class Larimar::TextDocument
   getter mutex : Mutex = Mutex.new
 
   def initialize(document : String, @uri : URI, @version : Int32 = 0)
-    # lsp uses utf-16 by default
-    @chars = document.to_utf16.map(&.unsafe_chr).to_a
+    @chars = document.chars
   end
 
   def update_partial(range : LSProtocol::Range, text : String, version : Int32 = 0) : Nil
@@ -23,7 +22,7 @@ class Larimar::TextDocument
 
   def update_whole(text : String, version : Int32 = 0) : Nil
     @ameba_source = nil
-    @chars = text.to_utf16.map(&.unsafe_chr).to_a
+    @chars = text.chars
     @version = version
   end
 
