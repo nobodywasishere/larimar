@@ -34,7 +34,7 @@ class Larimar::ProviderController < Larimar::Controller
               token_modifiers: LSProtocol::SemanticTokenModifiers.names.map(&.downcase),
             ),
             full: true,
-            range: false,
+            range: true,
           )
         end,
       )

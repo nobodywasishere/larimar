@@ -9,10 +9,11 @@ class CrystalProvider < Provider
       description "Finds places to do inlay hints"
     end
 
-    MSG = ""
-
     @[YAML::Field(ignore: true)]
     getter inlay_hints = Array(LSProtocol::InlayHint).new
+
+    @[YAML::Field(ignore: true)]
+    property inlay_range : LSProtocol::Range?
 
     def test(source)
       Ameba::AST::ScopeVisitor.new self, source
@@ -20,6 +21,13 @@ class CrystalProvider < Provider
 
     def test(source, node, scope : Ameba::AST::Scope)
       return if scope.lib_def?(check_outer_scopes: true)
+      return unless location = node.location
+
+      if (range = inlay_range) &&
+         ((location.line_number < range.start.line) ||
+         ((node.end_location || location).line_number > range.end.line))
+        return
+      end
 
       scope.variables.each do |var|
         case var.assign_before_reference
@@ -67,6 +75,7 @@ class CrystalProvider < Provider
     token : CancellationToken?,
   ) : Array(LSProtocol::InlayHint)?
     subject = LocalVarInlayHintRule.new
+    subject.inlay_range = range
 
     Ameba::AST::ScopeVisitor.new(subject, document.ameba_source)
 
