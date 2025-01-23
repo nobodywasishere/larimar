@@ -68,29 +68,38 @@ module FormattingProvider
   ) : Array(LSProtocol::TextEdit)?
 end
 
-module SemanticTokensProvider
-  record(
-    SemanticToken,
-    line : Int32,
-    char : Int32,
-    size : Int32,
-    type : LSProtocol::SemanticTokenTypes,
-    mods : LSProtocol::SemanticTokenModifiers = :none
-  ) do
-    def to_a : Array(UInt32)
-      [
-        @line.to_u32,
-        @char.to_u32,
-        @size.to_u32,
-        @type.value.to_u32,
-        @mods.value.to_u32,
-      ]
-    end
+record(
+  SemanticToken,
+  line : Int32,
+  char : Int32,
+  size : Int32,
+  type : LSProtocol::SemanticTokenTypes,
+  mods : LSProtocol::SemanticTokenModifiers = :none
+) do
+  def to_a : Array(UInt32)
+    [
+      @line.to_u32,
+      @char.to_u32,
+      @size.to_u32,
+      @type.value.to_u32,
+      @mods.value.to_u32,
+    ]
   end
+end
 
+module SemanticTokensProvider
   abstract def provide_semantic_tokens(
     document : Larimar::TextDocument,
     token : CancellationToken?,
+  ) : Array(SemanticToken)?
+end
+
+module SemanticTokensRangeProvider
+  abstract def provide_semantic_tokens_range(
+    document : Larimar::TextDocument,
+    range : LSProtocol::Range,
+    token : CancellationToken?,
+    & : Array(SemanticToken) -> Nil
   ) : Array(SemanticToken)?
 end
 

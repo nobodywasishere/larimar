@@ -30,14 +30,14 @@ class Larimar::ProviderController < Larimar::Controller
         folding_range_provider: @providers.any?(FoldingRangeProvider),
         hover_provider: @providers.any?(HoverProvider),
         inlay_hint_provider: @providers.any?(InlayHintProvider),
-        semantic_tokens_provider: if @providers.any?(SemanticTokensProvider)
+        semantic_tokens_provider: if @providers.any?(SemanticTokensProvider) || @providers.any?(SemanticTokensRangeProvider)
           LSProtocol::SemanticTokensOptions.new(
             legend: LSProtocol::SemanticTokensLegend.new(
               token_types: LSProtocol::SemanticTokenTypes.names.map(&.downcase),
               token_modifiers: LSProtocol::SemanticTokenModifiers.names.map(&.downcase),
             ),
-            full: true,
-            range: true,
+            full: @providers.any?(SemanticTokensProvider),
+            range: @providers.any?(SemanticTokensRangeProvider),
           )
         end,
       )
@@ -387,7 +387,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     params = message.params
     document_uri = params.text_document.uri
-    tokens = Array(SemanticTokensProvider::SemanticToken).new
+    tokens = Array(SemanticToken).new
 
     return unless document = @documents[document_uri]?
 
@@ -409,6 +409,61 @@ class Larimar::ProviderController < Larimar::Controller
     )
   rescue CancellationException
     LSProtocol::SemanticTokensResponse.new(
+      id: message.id,
+      result: nil
+    )
+  end
+
+  def on_request(message : LSProtocol::SemanticTokensRangeRequest)
+    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
+      @pending_requests << message.id
+      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
+      token_source.token
+    end
+
+    params = message.params
+    range = params.range
+    document_uri = params.text_document.uri
+    tokens = Array(SemanticToken).new
+
+    return unless document = @documents[document_uri]?
+
+    document.mutex.synchronize do
+      @providers.each do |provider|
+        if provider.is_a?(SemanticTokensRangeProvider)
+          result = provider.provide_semantic_tokens_range(document, range, cancel_token) do |partial_tokens|
+            if partial_result_token = params.partial_result_token
+              server.send_msg(
+                LSProtocol::ProgressNotification.new(
+                  params: LSProtocol::ProgressParams.new(
+                    token: partial_result_token,
+                    value: JSON.parse(
+                      LSProtocol::SemanticTokens.new(
+                        data: partial_tokens.flat_map(&.to_a)
+                      ).to_json
+                    )
+                  )
+                )
+              )
+            end
+          end
+
+          if result
+            tokens.concat result
+            break
+          end
+        end
+      end
+    end
+
+    LSProtocol::SemanticTokensRangeResponse.new(
+      id: message.id,
+      result: LSProtocol::SemanticTokens.new(
+        data: tokens.flat_map(&.to_a)
+      )
+    )
+  rescue CancellationException
+    LSProtocol::SemanticTokensRangeResponse.new(
       id: message.id,
       result: nil
     )
