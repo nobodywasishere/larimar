@@ -14,16 +14,11 @@ class Larimar::Server
     controller.server = self
 
     Log.info { "Starting server..." }
+
     handshake(controller)
 
-    begin
-      controller.when_ready
-    rescue ex
-      Log.error(exception: ex) { "Error during initialization: #{ex}" }
-      return
-    end
-
     Log.info { "Connected successfully." }
+
     server_loop(controller)
   end
 
@@ -82,6 +77,8 @@ class Larimar::Server
             sleep(3.seconds)
             exit
           end
+        when LSProtocol::InitializedNotification
+          response = controller.when_ready
         when LSProtocol::Request
           response = controller.on_request(message)
         when LSProtocol::Notification

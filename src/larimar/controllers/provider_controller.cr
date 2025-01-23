@@ -44,6 +44,12 @@ class Larimar::ProviderController < Larimar::Controller
     )
   end
 
+  def when_ready
+    @providers.each do |provider|
+      provider.when_ready
+    end
+  end
+
   def register_provider(provider : Provider) : Nil
     provider.controller = self
     @providers << provider
