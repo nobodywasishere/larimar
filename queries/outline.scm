@@ -83,7 +83,12 @@
     name: (_) @name) @item.interface
 
 (const_assign
-    lhs: (_) @name) @item.constant
+    lhs: (_) @name
+    rhs: (_) @context) @item.constant
+
+(type_declaration
+    var: [(instance_var) (class_var)] @name
+    type: (_) @context) @item.property
 
 ;; (call
 ;;     method: (_) @context
