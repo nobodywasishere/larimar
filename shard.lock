@@ -14,5 +14,5 @@ shards:
 
   tree_sitter:
     git: https://github.com/crystal-lang-tools/crystal-tree-sitter.git
-    version: 0.1.0+git.commit.6132f0eda747c599504dd4dc14ce128aade48ed0
+    version: 0.1.0+git.commit.1d46ca231a641b30b8e7fbbae7eba050f7717a9f
 
