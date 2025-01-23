@@ -83,9 +83,25 @@ class AmebaProvider < Provider
     source = Ameba::Source.new(document.to_s, document.uri.path)
     formatter = DiagnosticsFormatter.new
 
-    config = Ameba::Config.load(skip_reading_config: true)
+    config_path : String? = nil
+    controller.workspace_folders.try &.each do |folder|
+      next unless document.uri.path.starts_with?(folder.uri.path)
+
+      test_path : Path? = Path.new(folder.uri.path, ".ameba.yml")
+      next unless File.exists?(test_path)
+
+      config_path = test_path.to_s
+      break
+    end
+
+    Log.info(&.emit("Running ameba", source: document.uri.path, config: config_path))
+
+    config = Ameba::Config.load(path: config_path)
     config.sources = [source]
     config.formatter = formatter
+
+    # Disabling these as they're common when typing
+    config.update_rules(%w(Lint/Formatting Layout/TrailingBlankLines Layout/TrailingWhitespace), enabled: false)
 
     Ameba::Runner.new(config).run
 
