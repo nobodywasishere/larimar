@@ -81,6 +81,8 @@
 ; literals
 (string) @string
 
+(char) @string
+
 (symbol) @enummember
 
 (regex

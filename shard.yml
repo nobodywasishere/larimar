@@ -11,6 +11,8 @@ dependencies:
     github: crystal-ameba/ameba
   tree_sitter:
     github: crystal-lang-tools/crystal-tree-sitter
+  rwlock:
+    github: spider-gazelle/readers-writer
 
 targets:
   larimar:

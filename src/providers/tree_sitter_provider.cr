@@ -8,11 +8,14 @@ class TreeSitterProvider < Provider
 
   CrystalParser = TreeSitter::Parser.new("crystal")
 
+  @forest : Hash({URI, Int32}, TreeSitter::Tree) = Hash({URI, Int32}, TreeSitter::Tree).new
+  @forest_mutex : RWLock = RWLock.new
+
   def provide_semantic_tokens(
     document : Larimar::TextDocument,
     token : CancellationToken?,
   ) : Array(SemanticToken)?
-    tree = CrystalParser.parse(nil, document.to_s)
+    tree = get_cached_tree(document)
 
     query = TreeSitter::Query.new(
       CrystalParser.language,
@@ -67,7 +70,7 @@ class TreeSitterProvider < Provider
     token : CancellationToken?,
     & : Array(SemanticToken) -> Nil
   ) : Array(SemanticToken)?
-    tree = CrystalParser.parse(nil, document.to_s)
+    tree = get_cached_tree(document)
 
     query = TreeSitter::Query.new(
       CrystalParser.language,
@@ -128,7 +131,7 @@ class TreeSitterProvider < Provider
     document : Larimar::TextDocument,
     token : CancellationToken?,
   ) : Array(LSProtocol::FoldingRange)?
-    tree = CrystalParser.parse(nil, document.to_s)
+    tree = get_cached_tree(document)
 
     query = TreeSitter::Query.new(
       CrystalParser.language,
@@ -162,7 +165,7 @@ class TreeSitterProvider < Provider
     token : CancellationToken?,
   ) : Array(LSProtocol::DocumentSymbol)?
     source = document.to_s
-    tree = CrystalParser.parse(nil, source)
+    tree = get_cached_tree(document)
 
     query = TreeSitter::Query.new(
       CrystalParser.language,
@@ -209,6 +212,16 @@ class TreeSitterProvider < Provider
     handle_new_symbol()
 
     symbols
+  end
+
+  private def get_cached_tree(document : Larimar::TextDocument) : TreeSitter::Tree
+    @forest_mutex.write do
+      if @forest.has_key?({document.uri, document.version})
+        @forest[{document.uri, document.version}]
+      else
+        @forest[{document.uri, document.version}] = CrystalParser.parse(nil, document.to_s)
+      end
+    end
   end
 
   private def ts_node_to_range(node : TreeSitter::Node) : LSProtocol::Range

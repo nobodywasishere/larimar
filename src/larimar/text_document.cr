@@ -5,7 +5,7 @@ class Larimar::TextDocument
 
   getter uri : URI
   getter version : Int32
-  getter mutex : Mutex = Mutex.new
+  getter mutex : RWLock = RWLock.new
 
   def initialize(document : String, @uri : URI, @version : Int32 = 0)
     @chars = document.encode("UTF-8").map(&.unsafe_chr).to_a

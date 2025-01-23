@@ -64,39 +64,41 @@ class Larimar::Server
     loop do
       message = recv_msg
 
-      response : LSProtocol::Message?
-      nil_response = LSProtocol::ResponseMessage.new(id: message.id || "null", result: nil)
+      spawn do
+        response : LSProtocol::Message?
+        nil_response = LSProtocol::ResponseMessage.new(id: message.id || "null", result: nil)
 
-      case message
-      when LSProtocol::ExitNotification
-        exit
-      when LSProtocol::ShutdownRequest
-        # Not using ShutdownResponse as it doesn't include the result
-        response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
-
-        # Sometimes the upstream may not send the exit notification,
-        # leading to a zombie process being leftover even if the client is closed.
-        # Shutdown after 3 seconds regardless
-        spawn do
-          sleep(3.seconds)
+        case message
+        when LSProtocol::ExitNotification
           exit
+        when LSProtocol::ShutdownRequest
+          # Not using ShutdownResponse as it doesn't include the result
+          response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
+
+          # Sometimes the upstream may not send the exit notification,
+          # leading to a zombie process being leftover even if the client is closed.
+          # Shutdown after 3 seconds regardless
+          spawn do
+            sleep(3.seconds)
+            exit
+          end
+        when LSProtocol::Request
+          response = controller.on_request(message)
+        when LSProtocol::Notification
+          response = controller.on_notification(message)
+        when LSProtocol::Response
+          response = controller.on_response(message)
         end
-      when LSProtocol::Request
-        response = controller.on_request(message)
-      when LSProtocol::Notification
-        response = controller.on_notification(message)
-      when LSProtocol::Response
-        response = controller.on_response(message)
-      end
 
-      send_msg(response || nil_response)
-    rescue e
-      Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
+        send_msg(response || nil_response)
+      rescue e
+        Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
 
-      if message.is_a? LSProtocol::Request
-        response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
+        if message.is_a? LSProtocol::Request
+          response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
 
-        send_msg(response)
+          send_msg(response)
+        end
       end
     end
   end
@@ -104,7 +106,10 @@ class Larimar::Server
   # Transmit methods
 
   def send_msg(message : LSProtocol::Message, log : Bool = true) : Nil
-    Log.debug &.emit("Sending message #{message.class}\n  #{message.to_json}") if log
+    if log
+      Log.info &.emit("Sending message #{message.class}")
+      Log.debug &.emit(message.to_json)
+    end
 
     json = message.to_json
 
@@ -147,7 +152,8 @@ class Larimar::Server
 
     message = LSProtocol.parse_message(content)
 
-    Log.debug &.emit("Received message #{message.class}\n  #{message.to_json}")
+    Log.info &.emit("Received message #{message.class}")
+    Log.debug &.emit(message.to_json)
 
     message
   end

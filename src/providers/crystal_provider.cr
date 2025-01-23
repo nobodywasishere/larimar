@@ -72,6 +72,7 @@ class CrystalProvider < Provider
     )
 
     [edit]
+  rescue Crystal::SyntaxException
   end
 
   def provide_inlay_hints(

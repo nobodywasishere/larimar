@@ -145,7 +145,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless document = @documents[document_uri]?
 
-    document.mutex.synchronize do
+    document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(DocumentSymbolProvider)
           if result = provider.provide_document_symbols(document, cancel_token)
@@ -180,7 +180,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless document = @documents[document_uri]?
 
-    document.mutex.synchronize do
+    document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(CompletionItemProvider)
           if result = provider.provide_completion_items(document, position, cancel_token)
@@ -215,7 +215,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless document = @documents[document_uri]?
 
-    document.mutex.synchronize do
+    document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(DefinitionProvider)
           if result = provider.provide_definition(document, position, cancel_token)
@@ -250,7 +250,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless document = @documents[document_uri]?
 
-    document.mutex.synchronize do
+    document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(FoldingRangeProvider)
           if result = provider.provide_folding_ranges(document, cancel_token)
@@ -285,7 +285,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless document = @documents[document_uri]?
 
-    document.mutex.synchronize do
+    document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(HoverProvider)
           if result = provider.provide_hover(document, position, cancel_token)
@@ -321,7 +321,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless document = @documents[document_uri]?
 
-    document.mutex.synchronize do
+    document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(InlayHintProvider)
           if result = provider.provide_inlay_hints(document, range, cancel_token)
@@ -356,7 +356,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless document = @documents[document_uri]?
 
-    document.mutex.synchronize do
+    document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(FormattingProvider)
           if result = provider.provide_document_formatting_edits(document, options, cancel_token)
@@ -391,7 +391,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless document = @documents[document_uri]?
 
-    document.mutex.synchronize do
+    document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(SemanticTokensProvider)
           if result = provider.provide_semantic_tokens(document, cancel_token)
@@ -428,7 +428,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless document = @documents[document_uri]?
 
-    document.mutex.synchronize do
+    document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(SemanticTokensRangeProvider)
           result = provider.provide_semantic_tokens_range(document, range, cancel_token) do |partial_tokens|
