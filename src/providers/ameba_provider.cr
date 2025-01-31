@@ -87,14 +87,11 @@ class AmebaProvider < Provider
     formatter = DiagnosticsFormatter.new
 
     config_path : String? = nil
-    controller.workspace_folders.try &.each do |folder|
-      next unless document.uri.path.starts_with?(folder.uri.path)
 
-      test_path : Path? = Path.new(folder.uri.path, ".ameba.yml")
-      next unless File.exists?(test_path)
-
+    workspace_folder : URI? = Larimar::Workspace.find_closest_shard_yml(document.uri).try(&.path)
+    if workspace_folder
+      test_path : Path? = Path.new(workspace_folder, ".ameba.yml")
       config_path = test_path.to_s
-      break
     end
 
     Log.debug(&.emit("Running ameba", source: document.uri.path, config: config_path))
