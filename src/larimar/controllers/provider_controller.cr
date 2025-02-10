@@ -87,7 +87,7 @@ class Larimar::ProviderController < Larimar::Controller
     params = message.params
     document_uri = params.text_document.uri
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.synchronize do
       @documents.delete(document_uri)
@@ -103,7 +103,7 @@ class Larimar::ProviderController < Larimar::Controller
     document_uri = params.text_document.uri
     changes = params.content_changes
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.synchronize do
       changes.each do |change|
@@ -127,7 +127,7 @@ class Larimar::ProviderController < Larimar::Controller
     params = message.params
     document_uri = params.text_document.uri
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.synchronize do
       @providers.each do |provider|
@@ -149,12 +149,12 @@ class Larimar::ProviderController < Larimar::Controller
     document_uri = params.text_document.uri
     symbols = [] of LSProtocol::DocumentSymbol
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(DocumentSymbolProvider)
-          if result = provider.provide_document_symbols(document, cancel_token)
+          if (result = provider.provide_document_symbols(document, cancel_token))
             symbols.concat result
           end
         end
@@ -184,12 +184,12 @@ class Larimar::ProviderController < Larimar::Controller
     position = params.position
     completion_items = [] of LSProtocol::CompletionItem
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(CompletionItemProvider)
-          if result = provider.provide_completion_items(document, position, cancel_token)
+          if (result = provider.provide_completion_items(document, position, cancel_token))
             completion_items.concat result
           end
         end
@@ -219,12 +219,12 @@ class Larimar::ProviderController < Larimar::Controller
     position = params.position
     definition : LSProtocol::DefinitionResult = nil
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(DefinitionProvider)
-          if result = provider.provide_definition(document, position, cancel_token)
+          if (result = provider.provide_definition(document, position, cancel_token))
             definition = result
             break
           end
@@ -254,12 +254,12 @@ class Larimar::ProviderController < Larimar::Controller
     document_uri = params.text_document.uri
     folding_ranges = Array(LSProtocol::FoldingRange).new
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(FoldingRangeProvider)
-          if result = provider.provide_folding_ranges(document, cancel_token)
+          if (result = provider.provide_folding_ranges(document, cancel_token))
             folding_ranges.concat result
           end
         end
@@ -289,12 +289,12 @@ class Larimar::ProviderController < Larimar::Controller
     position = params.position
     hover : LSProtocol::Hover? = nil
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(HoverProvider)
-          if result = provider.provide_hover(document, position, cancel_token)
+          if (result = provider.provide_hover(document, position, cancel_token))
             hover = result
             break
           end
@@ -325,12 +325,12 @@ class Larimar::ProviderController < Larimar::Controller
     range = params.range
     inlay_hints = Array(LSProtocol::InlayHint).new
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(InlayHintProvider)
-          if result = provider.provide_inlay_hints(document, range, cancel_token)
+          if (result = provider.provide_inlay_hints(document, range, cancel_token))
             inlay_hints.concat result
           end
         end
@@ -360,12 +360,12 @@ class Larimar::ProviderController < Larimar::Controller
     options = params.options
     edits = Array(LSProtocol::TextEdit).new
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(FormattingProvider)
-          if result = provider.provide_document_formatting_edits(document, options, cancel_token)
+          if (result = provider.provide_document_formatting_edits(document, options, cancel_token))
             edits = result
             break
           end
@@ -395,12 +395,12 @@ class Larimar::ProviderController < Larimar::Controller
     document_uri = params.text_document.uri
     tokens = Array(SemanticToken).new
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(SemanticTokensProvider)
-          if result = provider.provide_semantic_tokens(document, cancel_token)
+          if (result = provider.provide_semantic_tokens(document, cancel_token))
             tokens.concat result
           end
         end
@@ -432,13 +432,13 @@ class Larimar::ProviderController < Larimar::Controller
     document_uri = params.text_document.uri
     tokens = Array(SemanticToken).new
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.read do
       @providers.each do |provider|
         if provider.is_a?(SemanticTokensRangeProvider)
           result = provider.provide_semantic_tokens_range(document, range, cancel_token) do |partial_tokens|
-            if partial_result_token = params.partial_result_token
+            if (partial_result_token = params.partial_result_token)
               server.send_msg(
                 LSProtocol::ProgressNotification.new(
                   params: LSProtocol::ProgressParams.new(

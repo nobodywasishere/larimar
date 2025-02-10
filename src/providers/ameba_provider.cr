@@ -3,7 +3,7 @@ class Ameba::Config
   property sources : Array(Source)?
 
   def sources
-    @sources ||= if file = stdin_filename
+    @sources ||= if (file = stdin_filename)
                    [Source.new(STDIN.gets_to_end, file)]
                  else
                    (find_files_by_globs(globs) - find_files_by_globs(excluded))
@@ -88,7 +88,7 @@ class AmebaProvider < Provider
 
     config_path : String? = nil
 
-    workspace_folder : URI? = Larimar::Workspace.find_closest_shard_yml(document.uri).try(&.path)
+    workspace_folder : String? = Larimar::Workspace.find_closest_shard_yml(document.uri).try(&.path)
     if workspace_folder
       test_path : Path? = Path.new(workspace_folder, ".ameba.yml")
       config_path = test_path.to_s

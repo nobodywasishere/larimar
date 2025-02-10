@@ -34,7 +34,7 @@ class TreeSitterProvider < Provider
     cursor.each_capture do |capture|
       return tokens if token.try(&.cancelled?)
 
-      next unless type = LSProtocol::SemanticTokenTypes.parse?(capture.rule)
+      next unless (type = LSProtocol::SemanticTokenTypes.parse?(capture.rule))
 
       position = LSProtocol::Position.new(
         line: capture.node.start_point.row.to_u32,
@@ -89,7 +89,7 @@ class TreeSitterProvider < Provider
     cursor.each_capture do |capture|
       return tokens if token.try(&.cancelled?)
 
-      next unless type = LSProtocol::SemanticTokenTypes.parse?(capture.rule)
+      next unless (type = LSProtocol::SemanticTokenTypes.parse?(capture.rule))
 
       position = LSProtocol::Position.new(
         line: capture.node.start_point.row.to_u32,

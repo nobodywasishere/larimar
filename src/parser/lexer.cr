@@ -318,7 +318,7 @@ class Larimar::Parser
           next_char
           new_token(:OP_COLON_COLON)
         elsif @wants_symbol
-          if token = scan_symbol
+          if (token = scan_symbol)
             new_token(token)
           else
             skip_to_valid
@@ -564,7 +564,7 @@ class Larimar::Parser
           case peek_next_char
           when 'm'
             next_char
-            if token = check_ident_or_keyword(:KW_ASM)
+            if (token = check_ident_or_keyword(:KW_ASM))
               new_token(token)
             else
               skip_to_valid
@@ -575,7 +575,7 @@ class Larimar::Parser
             next_char
             new_token(:KW_AS_QUESTION)
           else
-            if token = check_ident_or_keyword(:KW_AS)
+            if (token = check_ident_or_keyword(:KW_AS))
               new_token(token)
             else
               skip_to_valid
@@ -610,7 +610,7 @@ class Larimar::Parser
         when 'e'
           check_keyword_sequence(['f'], :KW_DEF)
         when 'o'
-          if token = check_ident_or_keyword(:KW_DO)
+          if (token = check_ident_or_keyword(:KW_DO))
             new_token(token)
           else
             skip_to_valid
@@ -626,7 +626,7 @@ class Larimar::Parser
           when 's'
             case next_char
             when 'e'
-              if token = check_ident_or_keyword(:KW_ELSE)
+              if (token = check_ident_or_keyword(:KW_ELSE))
                 new_token(token)
               else
                 skip_to_valid
@@ -643,7 +643,7 @@ class Larimar::Parser
         when 'n'
           case next_char
           when 'd'
-            if token = check_ident_or_keyword(:KW_END)
+            if (token = check_ident_or_keyword(:KW_END))
               new_token(token)
             else
               skip_to_valid
@@ -670,7 +670,7 @@ class Larimar::Parser
             if peek_next_char == 'a'
               next_char
               check_keyword_sequence(['l', 'l'], :KW_FORALL)
-            elsif token = check_ident_or_keyword(:KW_FOR)
+            elsif (token = check_ident_or_keyword(:KW_FOR))
               new_token(token)
             else
               skip_to_valid
@@ -687,7 +687,7 @@ class Larimar::Parser
       when 'i'
         case next_char
         when 'f'
-          if token = check_ident_or_keyword(:KW_IF)
+          if (token = check_ident_or_keyword(:KW_IF))
             new_token(token)
           else
             skip_to_valid
@@ -750,7 +750,7 @@ class Larimar::Parser
               next_char
               new_token(:KW_NIL_QUESTION)
             else
-              if token = check_ident_or_keyword(:KW_NIL)
+              if (token = check_ident_or_keyword(:KW_NIL))
                 new_token(token)
               else
                 skip_to_valid
@@ -770,7 +770,7 @@ class Larimar::Parser
             next_char
             check_keyword_sequence(['s', 'e', 't', 'o', 'f'], :KW_OFFSETOF)
           else
-            if token = check_ident_or_keyword(:KW_OF)
+            if (token = check_ident_or_keyword(:KW_OF))
               new_token(token)
             else
               skip_to_valid
@@ -829,7 +829,7 @@ class Larimar::Parser
             when 'e'
               check_keyword_sequence(['c', 't'], :KW_SELECT)
             when 'f'
-              if token = check_ident_or_keyword(:KW_SELF)
+              if (token = check_ident_or_keyword(:KW_SELF))
                 new_token(token)
               else
                 skip_to_valid

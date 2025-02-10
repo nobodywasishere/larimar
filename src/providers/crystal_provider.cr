@@ -26,7 +26,7 @@ class CrystalProvider < Provider
       cancellation_token.try(&.cancelled!)
 
       return if scope.lib_def?(check_outer_scopes: true)
-      return unless location = node.location
+      return unless (location = node.location)
 
       if (range = inlay_range) &&
          ((location.line_number < range.start.line) ||

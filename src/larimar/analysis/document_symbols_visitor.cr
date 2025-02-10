@@ -84,7 +84,7 @@ class Larimar::DocumentSymbolsVisitor < Crystal::Visitor
   end
 
   def visit(node : Crystal::Arg)
-    if (@parent_symbol.try &.kind.enum?)
+    if @parent_symbol.try &.kind.enum?
       symbol = node_to_symbol(node, :enum_member)
       @symbols << symbol
     end

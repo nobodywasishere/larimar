@@ -85,10 +85,7 @@ Metrics/CyclomaticComplexity:
 Style/ParenthesesAroundCondition:
   Description: Disallows redundant parentheses around control expressions
   ExcludeTernary: false
-  AllowSafeAssignment: false
-  Excluded:
-    - src/parser/parser.cr
-    - src/larimar/analysis/document_symbols_visitor.cr
+  AllowSafeAssignment: true
   Enabled: true
   Severity: Convention
 

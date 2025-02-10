@@ -1306,7 +1306,7 @@ class Larimar::Parser
     class_token = consume(:KW_CLASS)
     name = parse_path
 
-    if arrow_token = consume?(:OP_LT)
+    if (arrow_token = consume?(:OP_LT))
       super_name = parse_path
     end
 

@@ -68,7 +68,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     document_uri = params.text_document.uri
     tokens = [] of SemanticToken
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.synchronize do
       tokens = document.semantic_tokens
@@ -176,7 +176,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     errors = document.lex_errors + document.parse_errors
 
     each_token_with_pos(document) do |doc_idx, token, position|
-      if errs = errors.select { |e| doc_idx + token.start <= e.pos < (doc_idx + token.length) }
+      if (errs = errors.select { |e| doc_idx + token.start <= e.pos < (doc_idx + token.length) })
         errs.each do |err|
           diagnostics << LSProtocol::Diagnostic.new(
             message: err.message,
@@ -233,7 +233,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     params = message.params
     document_uri = params.text_document.uri
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.synchronize do
       @documents.delete(document_uri)
@@ -246,7 +246,7 @@ class Larimar::Parser::Controller < Larimar::Controller
     document_uri = params.text_document.uri
     changes = params.content_changes
 
-    return unless document = @documents[document_uri]?
+    return unless (document = @documents[document_uri]?)
 
     document.mutex.synchronize do
       changes.each do |change|
