@@ -97,6 +97,20 @@ module SemanticTokensProvider
   ) : Array(SemanticToken)?
 end
 
+module CodeActionProvider
+  abstract def provide_code_actions(
+    document : Larimar::TextDocument,
+    range : LSProtocol::Range | LSProtocol::SelectionRange,
+    context : LSProtocol::CodeActionContext,
+    token : CancellationToken?,
+  ) : Array(LSProtocol::Command)?
+
+  abstract def resolve_code_action(
+    code_action : LSProtocol::CodeAction,
+    token : CancellationToken?,
+  ) : LSProtocol::CodeAction?
+end
+
 module SemanticTokensRangeProvider
   abstract def provide_semantic_tokens_range(
     document : Larimar::TextDocument,

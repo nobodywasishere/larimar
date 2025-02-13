@@ -30,6 +30,7 @@ class Larimar::ProviderController < Larimar::Controller
         folding_range_provider: @providers.any?(FoldingRangeProvider),
         hover_provider: @providers.any?(HoverProvider),
         inlay_hint_provider: @providers.any?(InlayHintProvider),
+        code_action_provider: @providers.any?(CodeActionProvider),
         semantic_tokens_provider: if @providers.any?(SemanticTokensProvider) || @providers.any?(SemanticTokensRangeProvider)
           LSProtocol::SemanticTokensOptions.new(
             legend: LSProtocol::SemanticTokensLegend.new(
@@ -274,6 +275,72 @@ class Larimar::ProviderController < Larimar::Controller
     LSProtocol::FoldingRangeResponse.new(
       id: message.id,
       result: nil
+    )
+  end
+
+  def on_request(message : LSProtocol::CodeActionRequest)
+    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
+      @pending_requests << message.id
+      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
+      token_source.token
+    end
+
+    params = message.params
+    document_uri = params.text_document.uri
+    range = params.range
+    context = params.context
+
+    code_actions = Array(LSProtocol::CodeAction | LSProtocol::Command).new
+
+    return unless (document = @documents[document_uri]?)
+
+    document.mutex.read do
+      @providers.each do |provider|
+        if provider.is_a?(CodeActionProvider)
+          if (result = provider.provide_code_actions(document, range, context, cancel_token))
+            code_actions.concat result
+          end
+        end
+      end
+    end
+
+    LSProtocol::CodeActionResponse.new(
+      id: message.id,
+      result: code_actions
+    )
+  rescue CancellationException
+    LSProtocol::CodeActionResponse.new(
+      id: message.id,
+      result: nil
+    )
+  end
+
+  def on_request(message : LSProtocol::CodeActionResolveRequest)
+    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
+      @pending_requests << message.id
+      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
+      token_source.token
+    end
+
+    params = message.params
+    code_action = nil
+
+    @providers.each do |provider|
+      if provider.is_a?(CodeActionProvider)
+        if (code_action = provider.resolve_code_action(params, cancel_token))
+          break
+        end
+      end
+    end
+
+    LSProtocol::CodeActionResolveResponse.new(
+      id: message.id,
+      result: code_action || LSProtocol::CodeAction.new("Could not resolve code action.")
+    )
+  rescue CancellationException
+    LSProtocol::CodeActionResolveResponse.new(
+      id: message.id,
+      result: LSProtocol::CodeAction.new("Could not resolve code action.")
     )
   end
 
