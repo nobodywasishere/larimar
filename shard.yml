@@ -21,6 +21,8 @@ targets:
     main: src/cli/prompt.cr
   ast_web:
     main: src/cli/ast_web.cr
+  ameba-ls:
+    main: src/cli/ameba-ls.cr
 
 crystal: ">= 1.13.1"
 
