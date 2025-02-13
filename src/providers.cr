@@ -105,5 +105,3 @@ module SemanticTokensRangeProvider
     & : Array(SemanticToken) -> Nil
   ) : Array(SemanticToken)?
 end
-
-require "./providers/*"

@@ -25,6 +25,7 @@ require "./larimar/server"
 require "./larimar/controller"
 
 require "./providers"
+require "./providers/*"
 
 # require "./larimar/analysis/document_symbols_visitor"
 # require "./larimar/analysis/semantic_tokens_visitor"
