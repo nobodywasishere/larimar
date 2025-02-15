@@ -103,7 +103,7 @@ module CodeActionProvider
     range : LSProtocol::Range | LSProtocol::SelectionRange,
     context : LSProtocol::CodeActionContext,
     token : CancellationToken?,
-  ) : Array(LSProtocol::Command)?
+  ) : Array(LSProtocol::Command | LSProtocol::CodeAction)?
 
   abstract def resolve_code_action(
     code_action : LSProtocol::CodeAction,
