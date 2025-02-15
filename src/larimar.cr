@@ -27,6 +27,8 @@ require "./larimar/controller"
 require "./providers"
 require "./providers/*"
 
+require "./tree_sitter_converter"
+
 # require "./larimar/analysis/document_symbols_visitor"
 # require "./larimar/analysis/semantic_tokens_visitor"
 

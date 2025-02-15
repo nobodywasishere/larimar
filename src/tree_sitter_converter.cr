@@ -11,7 +11,7 @@ class TreeSitterConverter
     @parser = TreeSitter::Parser.new("crystal")
   end
 
-  def parse(@source : String) : Crystal::Expressions
+  def parse(@path : String?, @source : String) : Crystal::Expressions
     tree = @parser.parse(nil, source)
     convert_program(tree.root_node)
   end
@@ -22,7 +22,7 @@ class TreeSitterConverter
     node.child_count.times do |i|
       child = node.child(i.to_i32)
 
-      if ast_node = convert_node(child)
+      if (ast_node = convert_node(child))
         expressions << ast_node
       end
     end
@@ -34,9 +34,9 @@ class TreeSitterConverter
     # puts "node type: #{node.type}"
     case node.type
     when "require"
-      Crystal::Require.new(text(node.child(1))[1..-2])
+      convert_require(node)
     when "true", "false"
-      Crystal::BoolLiteral.new(node.type == "true")
+      convert_bool(node)
     when "nil"
       Crystal::NilLiteral.new
     when "type_declaration"
@@ -49,13 +49,15 @@ class TreeSitterConverter
       Crystal::SymbolLiteral.new(text(node)[1..])
     when "call"
       convert_call(node)
+    when "implicit_object_call"
+      convert_implicit_object_call(node)
     when "conditional"
       convert_conditional(node)
     when "var"
-      Crystal::Var.new(text(node))
+      convert_var(node)
     when "instance_var"
       Crystal::InstanceVar.new(text(node))
-    when "assign"
+    when "assign", "const_assign"
       convert_assign(node)
     when "expressions", "ERROR", "then"
       convert_expressions(node)
@@ -79,6 +81,8 @@ class TreeSitterConverter
           text(node.child(1)) == "/" ? "" : text(node.child(1))))
     when "if"
       convert_if(node)
+    when "while"
+      convert_while(node)
     when "case"
       convert_case(node)
     when "when", "in"
@@ -102,14 +106,28 @@ class TreeSitterConverter
       else
         Crystal::Token::Kind::MAGIC_FILE
       end
+    when "generic_instance_type"
+      convert_generic_instance_type(node)
     else
       puts "cannot convert #{node.type}"
       Crystal::Nop.new
-    end
+    end.try(&.at(pos(node)).at_end(end_pos(node)))
   end
 
   def convert_node?(node : TreeSitter::Node?) : Crystal::ASTNode?
     node ? convert_node(node) || Crystal::Nop.new : Crystal::Nop.new
+  end
+
+  private def convert_require(node) : Crystal::Require
+    Crystal::Require.new(text(node.child(1))[1..-2])
+  end
+
+  private def convert_bool(node) : Crystal::BoolLiteral
+    Crystal::BoolLiteral.new(node.type == "true")
+  end
+
+  def convert_var(node) : Crystal::Var
+    Crystal::Var.new(text(node))
   end
 
   private def convert_class_def(node : TreeSitter::Node) : Crystal::ClassDef
@@ -135,13 +153,34 @@ class TreeSitterConverter
       args.child_count.times do |i|
         child = args.child(i.to_i32)
 
-        if ast_arg = convert_node(child)
+        if (ast_arg = convert_node(child))
           arguments << ast_arg
         end
       end
     end
 
     Crystal::Call.new(obj, call_name, arguments)
+  end
+
+  private def convert_implicit_object_call(node) : Crystal::Call
+    recv = Crystal::ImplicitObj.new
+    name_node = child_by_field_name(node, "method")
+    args_node = child_by_field_name(node, "arguments")
+
+    call_name = name_node ? text(name_node)[1..] : ""
+    args = [] of Crystal::ASTNode
+
+    if args_node
+      args_node.child_count.times do |i|
+        child_node = args_node.child(i.to_i32)
+
+        if (child = convert_node(child_node))
+          args << child
+        end
+      end
+    end
+
+    Crystal::Call.new(recv, call_name, args)
   end
 
   private def convert_assign(node : TreeSitter::Node) : Crystal::Assign
@@ -162,7 +201,7 @@ class TreeSitterConverter
     node.child_count.times do |i|
       child = node.child(i.to_i32)
 
-      if converted_child = convert_node(child)
+      if (converted_child = convert_node(child))
         expressions << converted_child
       end
     end
@@ -269,16 +308,16 @@ class TreeSitterConverter
   private def convert_array(node) : Crystal::ArrayLiteral
     elements = [] of Crystal::ASTNode
 
-    if of_node = child_by_field_name(node, "of")
+    if child_by_field_name(node, "of")
       type_node = node.child((node.child_count - 1).to_i32)
       type = convert_node?(type_node)
     end
 
     node.child_count.times do |i|
       next if (i == node.child_count - 1) && type
-
       child_node = node.child(i.to_i32)
-      if child = convert_node(child_node)
+
+      if (child = convert_node(child_node))
         next if child.is_a?(Crystal::Nop)
         elements << child
       end
@@ -299,6 +338,16 @@ class TreeSitterConverter
     Crystal::If.new(cond_, then_, else_, false)
   end
 
+  private def convert_while(node) : Crystal::While
+    cond_node = child_by_field_name(node, "cond")
+    body_node = child_by_field_name(node, "body")
+
+    cond = convert_node?(cond_node)
+    body = convert_node?(body_node)
+
+    Crystal::While.new(cond, body)
+  end
+
   private def convert_case(node) : Crystal::Case
     cond_node = child_by_field_name(node, "cond")
     cond = convert_node(cond_node) if cond_node
@@ -307,7 +356,7 @@ class TreeSitterConverter
     else_ = nil
 
     node.child_count.times do |i|
-      case child = convert_node(node.child(i.to_i32))
+      case (child = convert_node(node.child(i.to_i32)))
       when Crystal::When
         whens << child
       when Crystal::Nop
@@ -327,6 +376,25 @@ class TreeSitterConverter
     body = convert_node?(body_node)
 
     Crystal::When.new(cond, body, exhaustive)
+  end
+
+  private def convert_generic_instance_type(node) : Crystal::Generic
+    name_node = node.child(0)
+    name = convert_node?(name_node)
+
+    type_vars = [] of Crystal::ASTNode
+
+    node.child_count.times do |i|
+      child_node = node.child(i.to_i32)
+
+      case (child = convert_node(child_node))
+      when Crystal::Nop, nil
+      else
+        type_vars << child
+      end
+    end
+
+    Crystal::Generic.new(name, type_vars)
   end
 
   # Get the node's child with the given field name.
@@ -351,14 +419,26 @@ class TreeSitterConverter
   def text(node)
     node.text(source).strip
   end
+
+  def pos(node) : Crystal::Location
+    point = node.start_point
+    Crystal::Location.new(@path, line_number: point.row.to_i32, column_number: point.column.to_i32)
+  end
+
+  def end_pos(node) : Crystal::Location
+    point = node.end_point
+    Crystal::Location.new(@path, line_number: point.row.to_i32, column_number: point.column.to_i32)
+  end
 end
 
 converter = TreeSitterConverter.new
 source = File.read("src/parser/parser.cr")
 # source = <<-SRC
-# source = File.read(__FILE__)
+# class Name
+#   def foo
+#   end
 # SRC
 
 puts source
 puts "\n------------------------------------------------\n\n"
-puts program = converter.parse(source)
+puts converter.parse("src/parser/parser.cr", source)
