@@ -1,8 +1,14 @@
 class CrystalProvider < Provider
   Log = ::Larimar::Log.for(self)
 
-  include FormattingProvider
+  # include FormattingProvider
   include InlayHintProvider
+  include CompletionItemProvider
+
+  CrystalParser = TreeSitter::Parser.new("crystal")
+
+  @forest : Hash({URI, Int32}, TreeSitter::Tree) = Hash({URI, Int32}, TreeSitter::Tree).new
+  @forest_mutex : RWLock = RWLock.new
 
   class LocalVarInlayHintRule < Ameba::Rule::Base
     properties do
@@ -87,5 +93,83 @@ class CrystalProvider < Provider
 
     subject.inlay_hints
   rescue Crystal::SyntaxException
+  end
+
+  class CompletionRule < Ameba::Rule::Base
+    properties do
+      description ""
+    end
+
+    @[YAML::Field(ignore: true)]
+    property! location : Crystal::Location
+
+    @[YAML::Field(ignore: true)]
+    getter completions : Array(LSProtocol::CompletionItem) = Array(LSProtocol::CompletionItem).new
+
+    @[YAML::Field(ignore: true)]
+    property cancellation_token : CancellationToken?
+
+    def test(source, context : Larimar::SemanticContext?)
+      return if context.nil?
+
+      Larimar::SemanticVisitor.new self, source, context
+    end
+
+    def test(source, node : Crystal::InstanceVar, current_type : Crystal::Type)
+      return unless (start_location = node.location)
+
+      @location
+
+      Log.info(&.emit("ivar: #{node.name}, loc: #{location}"))
+
+      return unless location.line_number == start_location.line_number
+
+      current_type.all_instance_vars.each do |ivar|
+        @completions << LSProtocol::CompletionItem.new(
+          label: ivar.name,
+          detail: "#{ivar.name} : #{ivar.freeze_type || ivar.type}",
+          kind: LSProtocol::CompletionItemKind::Property
+        )
+      end
+    end
+
+    def test(source, node, current_type)
+    end
+  end
+
+  def provide_completion_items(
+    document : Larimar::TextDocument,
+    position : LSProtocol::Position,
+    token : CancellationToken?,
+  ) : Array(LSProtocol::CompletionItem)?
+    source = document.to_s
+    Log.info(&.emit("generating ts tree context"))
+    ts_tree = get_cached_tree(document)
+    cr_tree = TreeSitterConverter.new.parse(document.uri.to_s, source, ts_tree)
+
+    Log.info(&.emit("generating semantic context"))
+    context = Larimar::SemanticContext.for_entrypoint("src/larimar.cr")
+
+    subject = CompletionRule.new
+    subject.location = Crystal::Location.new(document.uri.path, position.line.to_i32, position.character.to_i32)
+
+    Log.info(&.emit("visiting location"))
+    visitor = Larimar::SemanticVisitor.new(subject, document, context)
+    visitor.visit(cr_tree)
+
+    results = subject.completions
+
+    Log.info(&.emit(results.to_json))
+    results
+  end
+
+  private def get_cached_tree(document : Larimar::TextDocument) : TreeSitter::Tree
+    @forest_mutex.write do
+      if @forest.has_key?({document.uri, document.version})
+        @forest[{document.uri, document.version}]
+      else
+        @forest[{document.uri, document.version}] = CrystalParser.parse(nil, document.to_s)
+      end
+    end
   end
 end
