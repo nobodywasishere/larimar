@@ -1,8 +1,8 @@
 class TreeSitterProvider < Provider
   Log = ::Larimar::Log.for(self)
 
-  include SemanticTokensProvider
-  include SemanticTokensRangeProvider
+  # include SemanticTokensProvider
+  # include SemanticTokensRangeProvider
   include FoldingRangeProvider
   include DocumentSymbolProvider
 
