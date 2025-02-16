@@ -16,6 +16,10 @@ class TreeSitterConverter
     convert_program(tree.root_node)
   end
 
+  def parse(@path : String?, @source : String, @tree : TreeSitter::Tree) : Crystal::Expressions
+    convert_program(tree.root_node)
+  end
+
   private def convert_program(node : TreeSitter::Node) : Crystal::Expressions
     expressions = [] of Crystal::ASTNode
 
@@ -109,7 +113,7 @@ class TreeSitterConverter
     when "generic_instance_type"
       convert_generic_instance_type(node)
     else
-      puts "cannot convert #{node.type}"
+      # puts "cannot convert #{node.type}"
       Crystal::Nop.new
     end.try(&.at(pos(node)).at_end(end_pos(node)))
   end
@@ -431,14 +435,14 @@ class TreeSitterConverter
   end
 end
 
-converter = TreeSitterConverter.new
-source = File.read("src/parser/parser.cr")
-# source = <<-SRC
-# class Name
-#   def foo
-#   end
-# SRC
+# converter = TreeSitterConverter.new
+# source = File.read("src/parser/parser.cr")
+# # source = <<-SRC
+# # class Name
+# #   def foo
+# #   end
+# # SRC
 
-puts source
-puts "\n------------------------------------------------\n\n"
-puts converter.parse("src/parser/parser.cr", source)
+# puts source
+# puts "\n------------------------------------------------\n\n"
+# puts converter.parse("src/parser/parser.cr", source)

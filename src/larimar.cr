@@ -17,6 +17,10 @@ require "./parser/token"
 require "./parser/ast"
 require "./parser/parser"
 
+require "./semantic/environment"
+require "./semantic/semantic_context"
+require "./semantic/semantic_visitor"
+
 require "./larimar/log"
 require "./larimar/text_document"
 require "./larimar/workspace"
