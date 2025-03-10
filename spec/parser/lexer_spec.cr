@@ -3,9 +3,9 @@ require "../spec_helper"
 describe Larimar::Parser::Lexer do
   it "lexes a document fully" do
     document = Larimar::Parser::Document.new <<-SRC
-    hello
-    world
-    SRC
+      hello
+      world
+      SRC
 
     Larimar::Parser::Lexer.lex_full(document)
 
@@ -19,9 +19,9 @@ describe Larimar::Parser::Lexer do
 
   it "lexes a document partially" do
     document = Larimar::Parser::Document.new <<-SRC
-    hello
-    world
-    SRC
+      hello
+      world
+      SRC
 
     Larimar::Parser::Lexer.lex_full(document)
 
@@ -42,9 +42,9 @@ describe Larimar::Parser::Lexer do
     document.update_partial(range, edit)
 
     document.to_s.should eq(<<-EDIT)
-    hello there1
-    world
-    EDIT
+      hello there1
+      world
+      EDIT
 
     Larimar::Parser::Lexer.lex_partial(document, range, edit.size)
 
@@ -58,9 +58,9 @@ describe Larimar::Parser::Lexer do
 
   it "lexes a document partially and corrects keyword" do
     document = Larimar::Parser::Document.new <<-SRC
-    de hello
-    kenobi
-    SRC
+      de hello
+      kenobi
+      SRC
 
     Larimar::Parser::Lexer.lex_full(document)
 
@@ -86,9 +86,9 @@ describe Larimar::Parser::Lexer do
     document.update_partial(range, edit)
 
     document.to_s.should eq(<<-EDIT)
-    def hello
-    kenobi
-    EDIT
+      def hello
+      kenobi
+      EDIT
 
     Larimar::Parser::Lexer.lex_partial(document, range, edit.size)
 
@@ -102,9 +102,9 @@ describe Larimar::Parser::Lexer do
 
   it "lexes a document partially and adds keyword" do
     document = Larimar::Parser::Document.new <<-SRC
-    de hello
-    kenobi
-    SRC
+      de hello
+      kenobi
+      SRC
 
     Larimar::Parser::Lexer.lex_full(document)
 
@@ -130,9 +130,9 @@ describe Larimar::Parser::Lexer do
     document.update_partial(range, edit)
 
     document.to_s.should eq(<<-EDIT)
-    abstract def hello
-    kenobi
-    EDIT
+      abstract def hello
+      kenobi
+      EDIT
 
     Larimar::Parser::Lexer.lex_partial(document, range, edit.size)
 

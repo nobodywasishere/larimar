@@ -3,9 +3,9 @@ require "../spec_helper"
 describe Larimar::Parser::Document do
   it "iterates over chars in a document" do
     doc = Larimar::Parser::Document.new(<<-SRC)
-    hello
-    world
-    SRC
+      hello
+      world
+      SRC
 
     doc.current_char.should eq('h')
     doc.next_char
@@ -36,9 +36,9 @@ describe Larimar::Parser::Document do
 
   it "can be updated with changes" do
     doc = Larimar::Parser::Document.new(<<-SRC)
-    hello
-    world
-    SRC
+      hello
+      world
+      SRC
 
     range = LSProtocol::Range.new(
       start: LSProtocol::Position.new(
@@ -54,9 +54,9 @@ describe Larimar::Parser::Document do
     doc.update_partial(range, edit)
 
     doc.to_s.should eq(<<-EDIT)
-    hello there
-    world
-    EDIT
+      hello there
+      world
+      EDIT
 
     range2 = LSProtocol::Range.new(
       start: LSProtocol::Position.new(
@@ -72,8 +72,8 @@ describe Larimar::Parser::Document do
     doc.update_partial(range2, edit2)
 
     doc.to_s.should eq(<<-EDIT)
-    hello there
-    general kenobi!
-    EDIT
+      hello there
+      general kenobi!
+      EDIT
   end
 end

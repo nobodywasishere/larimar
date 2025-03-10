@@ -9,6 +9,7 @@ dependencies:
     github: nobodywasishere/lsprotocol-crystal
   ameba:
     github: crystal-ameba/ameba
+    commit: d0ab2256dadfbdf2035d764d90c23946b0cd4b05
   tree_sitter:
     github: crystal-lang-tools/crystal-tree-sitter
   rwlock:

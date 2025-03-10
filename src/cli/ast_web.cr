@@ -22,27 +22,27 @@ def with_timeout(time : Time::Span, &block)
 end
 
 html = <<-HTML
-<!DOCTYPE html>
+  <!DOCTYPE html>
 
-<html lang="en-US">
-<head>
-  <script defer src="https://unpkg.com/htmx.org@1.9.4/dist/htmx.min.js"></script>
-</head>
-<body>
-  <table>
-    <tr style="vertical-align: top;">
-      <td>
-        <textarea name="src" placeholder="Parse Crystal..." rows=40 cols=40
-          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          hx-post="/parse" hx-trigger="keyup changed" hx-target="#parse-results"></textarea>
-      </td>
-      <td>
-        <div id="parse-results"></div>
-      </td>
-    </tr>
-  </table>
-</body>
-HTML
+  <html lang="en-US">
+  <head>
+    <script defer src="https://unpkg.com/htmx.org@1.9.4/dist/htmx.min.js"></script>
+  </head>
+  <body>
+    <table>
+      <tr style="vertical-align: top;">
+        <td>
+          <textarea name="src" placeholder="Parse Crystal..." rows=40 cols=40
+            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+            hx-post="/parse" hx-trigger="keyup changed" hx-target="#parse-results"></textarea>
+        </td>
+        <td>
+          <div id="parse-results"></div>
+        </td>
+      </tr>
+    </table>
+  </body>
+  HTML
 
 server = HTTP::Server.new do |context|
   request = context.request
@@ -66,10 +66,10 @@ server = HTTP::Server.new do |context|
 
     result = String.build do |str|
       str << <<-HTML
-      <table>
-        <tr style="vertical-align: top;">
-          <td style="width: 300vw;">
-      HTML
+        <table>
+          <tr style="vertical-align: top;">
+            <td style="width: 300vw;">
+        HTML
 
       str << "<p>" << elapsed_time << "</p>"
 
@@ -105,10 +105,10 @@ server = HTTP::Server.new do |context|
       str << "\n</code></pre>"
 
       str << <<-HTML
-          </td>
-        </tr>
-      </table>
-      HTML
+            </td>
+          </tr>
+        </table>
+        HTML
     end
 
     context.response.content_type = "text/html; charset=utf-8"

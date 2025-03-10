@@ -118,8 +118,6 @@ class CrystalProvider < Provider
     def test(source, node : Crystal::InstanceVar, current_type : Crystal::Type)
       return unless (start_location = node.location)
 
-      @location
-
       Log.info(&.emit("ivar: #{node.name}, loc: #{location}"))
 
       return unless location.line_number == start_location.line_number

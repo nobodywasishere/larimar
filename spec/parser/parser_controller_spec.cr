@@ -4,9 +4,9 @@ describe Larimar::Parser::Controller do
   context ".generate_semantic_tokens" do
     it "converts tokens to semantic tokens (require)" do
       document = Larimar::Parser::Document.new <<-SRC
-      require "json"
-      world
-      SRC
+        require "json"
+        world
+        SRC
 
       Larimar::Parser::Lexer.lex_full(document)
       Larimar::Parser::Controller.generate_semantic_tokens(document)
@@ -26,8 +26,8 @@ describe Larimar::Parser::Controller do
 
     it "converts tokens to semantic tokens (if)" do
       document = Larimar::Parser::Document.new <<-SRC
-      if a.nil?
-      SRC
+        if a.nil?
+        SRC
 
       Larimar::Parser::Lexer.lex_full(document)
       Larimar::Parser::Controller.generate_semantic_tokens(document)
@@ -50,8 +50,8 @@ describe Larimar::Parser::Controller do
 
     it "convets tokens to semantic tokens (string)" do
       document = Larimar::Parser::Document.new <<-SRC
-      puts "string \#{hello there + ""}".as?(String)
-      SRC
+        puts "string \#{hello there + ""}".as?(String)
+        SRC
 
       Larimar::Parser::Lexer.lex_full(document)
       Larimar::Parser::Controller.generate_semantic_tokens(document)
@@ -86,10 +86,10 @@ describe Larimar::Parser::Controller do
 
     it "converts tokens to semantic tokens (case)" do
       document = Larimar::Parser::Document.new <<-SRC
-      type = case token.kind
-             when .ident?
-              LSProtocol::SemanticTokenTypes::Variable
-      SRC
+        type = case token.kind
+               when .ident?
+                 LSProtocol::SemanticTokenTypes::Variable
+        SRC
 
       Larimar::Parser::Lexer.lex_full(document)
       Larimar::Parser::Controller.generate_semantic_tokens(document)

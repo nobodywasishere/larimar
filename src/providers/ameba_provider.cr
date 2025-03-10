@@ -101,7 +101,7 @@ class AmebaProvider < Provider
     config.formatter = formatter
 
     # Disabling these as they're common when typing
-    config.update_rules(%w(Lint/Formatting Layout/TrailingBlankLines Layout/TrailingWhitespace), enabled: false)
+    config.update_rules(%w[Lint/Formatting Layout/TrailingBlankLines Layout/TrailingWhitespace], enabled: false)
 
     begin
       Ameba::Runner.new(config).run

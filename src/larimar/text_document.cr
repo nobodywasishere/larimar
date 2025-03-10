@@ -106,7 +106,7 @@ class Larimar::TextDocument
 
   def ameba_source : Ameba::Source
     @ameba_source ||= Ameba::Source.new(
-      self.to_s,
+      to_s,
       self.uri.path
     )
   end

@@ -179,10 +179,10 @@ class TreeSitterProvider < Provider
     symbol_stack = Array(LSProtocol::DocumentSymbol).new
 
     curr_kind : LSProtocol::SymbolKind = LSProtocol::SymbolKind::Variable
-    curr_names = %w()
+    curr_names = %w[]
     curr_range = nil
     curr_selection_range = nil
-    curr_details = %w()
+    curr_details = %w[]
 
     cursor.each_capture do |capture|
       return symbols if token.try(&.cancelled?)
