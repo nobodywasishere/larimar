@@ -31,7 +31,11 @@ class Larimar::ProviderController < Larimar::Controller
         folding_range_provider: @providers.any?(FoldingRangeProvider),
         hover_provider: @providers.any?(HoverProvider),
         inlay_hint_provider: @providers.any?(InlayHintProvider),
-        code_action_provider: @providers.any?(CodeActionProvider),
+        code_action_provider: if @providers.any?(CodeActionProvider)
+          LSProtocol::CodeActionOptions.new(
+            resolve_provider: true
+          )
+        end,
         semantic_tokens_provider: if @providers.any?(SemanticTokensProvider) || @providers.any?(SemanticTokensRangeProvider)
           LSProtocol::SemanticTokensOptions.new(
             legend: LSProtocol::SemanticTokensLegend.new(
