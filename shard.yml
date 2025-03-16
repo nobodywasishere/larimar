@@ -7,9 +7,6 @@ authors:
 dependencies:
   lsprotocol:
     github: nobodywasishere/lsprotocol-crystal
-  ameba:
-    github: crystal-ameba/ameba
-    commit: d0ab2256dadfbdf2035d764d90c23946b0cd4b05
   tree_sitter:
     github: crystal-lang-tools/crystal-tree-sitter
   rwlock:
@@ -22,8 +19,6 @@ targets:
     main: src/cli/prompt.cr
   ast_web:
     main: src/cli/ast_web.cr
-  ameba-ls:
-    main: src/cli/ameba-ls.cr
 
 crystal: ">= 1.13.1"
 

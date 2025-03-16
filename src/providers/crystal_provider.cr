@@ -1,4 +1,4 @@
-class CrystalProvider < Provider
+class Larimar::CrystalProvider < Larimar::Provider
   Log = ::Larimar::Log.for(self)
 
   # include FormattingProvider

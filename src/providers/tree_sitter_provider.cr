@@ -1,4 +1,4 @@
-class TreeSitterProvider < Provider
+class Larimar::TreeSitterProvider < Larimar::Provider
   Log = ::Larimar::Log.for(self)
 
   # include SemanticTokensProvider
