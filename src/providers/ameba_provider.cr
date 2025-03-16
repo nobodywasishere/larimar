@@ -15,6 +15,12 @@ end
 class AmebaProvider < Provider
   Log = ::Larimar::Log.for(self)
 
+  include CodeActionProvider
+
+  @document_version : Int32 = 0
+  @diagnostics : Array(LSProtocol::Diagnostic) = Array(LSProtocol::Diagnostic).new
+  @issues : Array(Ameba::Issue) = Array(Ameba::Issue).new
+
   class DiagnosticsFormatter < Ameba::Formatter::BaseFormatter
     getter diagnostics : Array(LSProtocol::Diagnostic) = Array(LSProtocol::Diagnostic).new
     @mutex : Mutex = Mutex.new
@@ -111,6 +117,10 @@ class AmebaProvider < Provider
     rescue CancellationException
     end
 
+    @issues = source.issues
+    @diagnostics = formatter.diagnostics
+    @document_version = document.version
+
     controller.server.send_msg(
       LSProtocol::PublishDiagnosticsNotification.new(
         params: LSProtocol::PublishDiagnosticsParams.new(
@@ -119,5 +129,86 @@ class AmebaProvider < Provider
         )
       )
     )
+  end
+
+  def provide_code_actions(
+    document : Larimar::TextDocument,
+    range : LSProtocol::Range | LSProtocol::SelectionRange,
+    context : LSProtocol::CodeActionContext,
+    token : CancellationToken?,
+  ) : Array(LSProtocol::CodeAction | LSProtocol::Command)?
+    result = [] of LSProtocol::CodeAction | LSProtocol::Command
+
+    if @document_version != document.version
+      return
+    end
+
+    @diagnostics.each_with_index do |diagnostic, idx|
+      break unless (issue = @issues[idx]?)
+      next unless issue.correctable?
+
+      corrector = Ameba::Source::Corrector.new(document.to_s)
+      issue.correct(corrector)
+
+      text_edits = [] of LSProtocol::TextEdit
+      get_text_edits(document, text_edits, corrector.@rewriter.@action_root)
+
+      workspace_edit = LSProtocol::WorkspaceEdit.new(
+        changes: {document.uri => text_edits}
+      )
+
+      result << LSProtocol::CodeAction.new(
+        title: "Fix #{issue.rule.name}",
+        diagnostics: [diagnostic],
+        edit: workspace_edit
+      )
+    end
+
+    result
+  end
+
+  private def get_text_edits(document, edits : Array(LSProtocol::TextEdit), action : Ameba::Source::Rewriter::Action) : Nil
+    begin_pos = document.index_to_position(action.begin_pos)
+    end_pos = document.index_to_position(action.begin_pos)
+
+    if (insert_before = action.insert_before.presence)
+      edits << LSProtocol::TextEdit.new(
+        new_text: insert_before,
+        range: LSProtocol::Range.new(
+          start: begin_pos,
+          end: begin_pos
+        )
+      )
+    end
+
+    if (insert_after = action.insert_after.presence)
+      edits << LSProtocol::TextEdit.new(
+        new_text: insert_after,
+        range: LSProtocol::Range.new(
+          start: end_pos,
+          end: end_pos
+        )
+      )
+    end
+
+    if (replacement = action.replacement)
+      edits << LSProtocol::TextEdit.new(
+        new_text: replacement,
+        range: LSProtocol::Range.new(
+          start: document.index_to_position(action.begin_pos),
+          end: document.index_to_position(action.end_pos)
+        )
+      )
+    else
+      action.@children.each do |child|
+        get_text_edits(document, edits, child)
+      end
+    end
+  end
+
+  def resolve_code_action(
+    code_action : LSProtocol::CodeAction,
+    token : CancellationToken?,
+  ) : LSProtocol::CodeAction?
   end
 end
