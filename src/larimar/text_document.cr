@@ -33,11 +33,9 @@ class Larimar::TextDocument
   end
 
   def to_s : String
-    mem = IO::Memory.new
-
-    to_s(mem)
-
-    mem.to_s
+    String.build do |str|
+      to_s(str)
+    end
   end
 
   def position_to_index(position : LSProtocol::Position) : Int32
