@@ -160,6 +160,7 @@ class AmebaProvider < Provider
       result << LSProtocol::CodeAction.new(
         title: "Fix #{issue.rule.name}",
         diagnostics: [diagnostic],
+        is_preferred: true,
         edit: workspace_edit
       )
     end
