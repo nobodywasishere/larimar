@@ -26,7 +26,3 @@ abstract class Larimar::Controller
     Log.error { "Unhandled response message #{message.class.to_s.split("::").last}" }
   end
 end
-
-# require "./controllers/crystal_controller"
-# require "./controllers/parser_controller"
-require "./controllers/provider_controller"
