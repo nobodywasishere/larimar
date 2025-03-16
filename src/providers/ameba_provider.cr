@@ -171,7 +171,7 @@ class AmebaProvider < Provider
     begin_pos = document.index_to_position(action.begin_pos)
     end_pos = document.index_to_position(action.begin_pos)
 
-    if (insert_before = action.insert_before.presence)
+    if (insert_before = action.insert_before) && !insert_before.empty?
       edits << LSProtocol::TextEdit.new(
         new_text: insert_before,
         range: LSProtocol::Range.new(
@@ -181,7 +181,7 @@ class AmebaProvider < Provider
       )
     end
 
-    if (insert_after = action.insert_after.presence)
+    if (insert_after = action.insert_after) && !insert_after.empty?
       edits << LSProtocol::TextEdit.new(
         new_text: insert_after,
         range: LSProtocol::Range.new(
