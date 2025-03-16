@@ -19,6 +19,7 @@ class Larimar::ProviderController < Larimar::Controller
     LSProtocol::InitializeResult.new(
       LSProtocol::ServerCapabilities.new(
         text_document_sync: LSProtocol::TextDocumentSyncKind::Full,
+        position_encoding: handle_pos_encoding(init_params),
         document_formatting_provider: @providers.any?(FormattingProvider),
         document_symbol_provider: @providers.any?(DocumentSymbolProvider),
         completion_provider: if @providers.any?(CompletionItemProvider)
@@ -43,6 +44,16 @@ class Larimar::ProviderController < Larimar::Controller
         end,
       )
     )
+  end
+
+  private def handle_pos_encoding(init_params)
+    position_encodings = init_params.capabilities.general.try &.position_encodings
+
+    if position_encodings.try(&.any? { |e| e.in?("utf8", "utf-8") || (e.is_a?(LSProtocol::PositionEncodingKind) && e.utf8?) })
+      LSProtocol::PositionEncodingKind::Utf8
+    else
+      LSProtocol::PositionEncodingKind::Utf16
+    end
   end
 
   def when_ready

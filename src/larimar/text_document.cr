@@ -8,7 +8,7 @@ class Larimar::TextDocument
   getter mutex : RWLock = RWLock.new
 
   def initialize(document : String, @uri : URI, @version : Int32 = 0)
-    @chars = document.encode("UTF-8").map(&.unsafe_chr).to_a
+    @chars = document.chars
   end
 
   def update_partial(range : LSProtocol::Range, text : String, version : Int32 = 0) : Nil
@@ -16,13 +16,13 @@ class Larimar::TextDocument
     start_pos = position_to_index(range.start)
     end_pos = position_to_index(range.end)
 
-    @chars[start_pos...end_pos] = text.encode("UTF-8").map(&.unsafe_chr).to_a
+    @chars[start_pos...end_pos] = text.chars
     @version = version
   end
 
   def update_whole(text : String, version : Int32 = 0) : Nil
     @ameba_source = nil
-    @chars = text.encode("UTF-8").map(&.unsafe_chr).to_a
+    @chars = text.chars
     @version = version
   end
 
