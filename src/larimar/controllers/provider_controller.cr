@@ -18,7 +18,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     LSProtocol::InitializeResult.new(
       LSProtocol::ServerCapabilities.new(
-        text_document_sync: LSProtocol::TextDocumentSyncKind::Full,
+        text_document_sync: LSProtocol::TextDocumentSyncKind::Incremental,
         position_encoding: handle_pos_encoding(init_params),
         document_formatting_provider: @providers.any?(FormattingProvider),
         document_symbol_provider: @providers.any?(DocumentSymbolProvider),
