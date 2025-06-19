@@ -2,7 +2,6 @@ require "log"
 require "json"
 require "uri"
 require "lsprotocol"
-require "ameba"
 require "rwlock"
 
 require "../cancellation_token"
