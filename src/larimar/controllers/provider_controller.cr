@@ -16,6 +16,10 @@ class Larimar::ProviderController < Larimar::Controller
     @capabilities = init_params.capabilities
     @workspace_folders = init_params.workspace_folders
 
+    @providers.each do |provider|
+      provider.on_init(init_params)
+    end
+
     LSProtocol::InitializeResult.new(
       LSProtocol::ServerCapabilities.new(
         text_document_sync: LSProtocol::TextDocumentSyncKind::Incremental,

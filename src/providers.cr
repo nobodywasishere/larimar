@@ -2,6 +2,9 @@ module Larimar
   class Provider
     property! controller : Larimar::ProviderController
 
+    def on_init(init_params : LSProtocol::InitializeParams) : Nil
+    end
+
     def when_ready : Nil
     end
 
