@@ -38,7 +38,7 @@ module Larimar
       document : Larimar::TextDocument,
       position : LSProtocol::Position,
       token : CancellationToken?,
-    ) : Array(LSProtocol::Definition)?
+    ) : LSProtocol::DefinitionResult?
   end
 
   module FoldingRangeProvider
