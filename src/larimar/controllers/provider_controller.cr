@@ -388,15 +388,19 @@ class Larimar::ProviderController < Larimar::Controller
       end
     end
 
-    LSProtocol::HoverResponse.new(
-      id: message.id,
-      result: hover
-    )
+    if hover
+      LSProtocol::HoverResponse.new(
+        id: message.id,
+        result: hover
+      )
+    end
   rescue CancellationException
-    LSProtocol::HoverResponse.new(
-      id: message.id,
-      result: hover
-    )
+    if hover
+      LSProtocol::HoverResponse.new(
+        id: message.id,
+        result: hover
+      )
+    end
   end
 
   def on_request(message : LSProtocol::InlayHintRequest)
