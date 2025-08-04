@@ -78,16 +78,18 @@ class Larimar::Server
             exit
           end
         when LSProtocol::InitializedNotification
-          response = controller.when_ready
+          controller.when_ready
         when LSProtocol::Request
-          response = controller.on_request(message)
+          response = controller.on_request(message) || nil_response
         when LSProtocol::Notification
-          response = controller.on_notification(message)
+          controller.on_notification(message)
         when LSProtocol::Response
-          response = controller.on_response(message)
+          controller.on_response(message)
         end
 
-        send_msg(response || nil_response)
+        if response
+          send_msg(response)
+        end
       rescue e
         Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
 
