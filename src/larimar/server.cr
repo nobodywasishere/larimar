@@ -61,7 +61,9 @@ class Larimar::Server
 
       spawn do
         response : LSProtocol::Message?
-        nil_response = LSProtocol::ResponseMessage.new(id: message.id || "null", result: nil)
+        if (message_id = message.id)
+          nil_response = LSProtocol::ResponseMessage.new(id: message_id, result: nil)
+        end
 
         case message
         when LSProtocol::ExitNotification
@@ -81,6 +83,10 @@ class Larimar::Server
           controller.when_ready
         when LSProtocol::Request
           response = controller.on_request(message) || nil_response
+
+          if response.nil?
+            Log.error { "Error: No response for #{message.class}" }
+          end
         when LSProtocol::Notification
           controller.on_notification(message)
         when LSProtocol::Response
