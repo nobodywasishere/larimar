@@ -1,6 +1,6 @@
 class Larimar::LogBackend < ::Log::IOBackend
-  def initialize(@server : Larimar::Server, formatter = LogFormatter, dispatcher : Dispatcher::Spec = DispatchMode::Async)
-    super(server.output, formatter: formatter, dispatcher: dispatcher)
+  def initialize(@server : Larimar::Server, formatter = LogFormatter)
+    super(server.output, formatter: formatter)
   end
 
   def write(entry : ::Log::Entry)
