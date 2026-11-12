@@ -24,9 +24,9 @@ class Larimar::Workspace
     curr_dir = Path.new(uri.path).parent
     while curr_dir != curr_dir.root
       shard_yml = Path.new(curr_dir, "shard.yml")
-      lib_dir = Path.new(curr_dir, "..", "..", "lib").normalize
 
-      if File.exists?(shard_yml) && !File.exists?(lib_dir)
+      # Skips dependencies installed into the `lib` folder of another shard
+      if File.exists?(shard_yml) && curr_dir.parent.basename != "lib"
         return curr_dir.to_uri
       end
 
