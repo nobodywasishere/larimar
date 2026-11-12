@@ -30,7 +30,9 @@ class Larimar::Workspace
         return curr_dir.to_uri
       end
 
-      curr_dir = curr_dir.parent
+      # A relative path never reaches a root, but stops at `.` instead
+      break if (parent = curr_dir.parent) == curr_dir
+      curr_dir = parent
     end
 
     nil

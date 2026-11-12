@@ -30,5 +30,14 @@ describe Larimar::Workspace do
 
       Path.new(result.path).basename.should eq("larimar")
     end
+
+    it "returns for a relative path, like the one of an `untitled:` document" do
+      Dir.cd(Dir.tempdir) do
+        result = Larimar::Workspace.find_closest_shard_yml(
+          URI.parse("untitled:Untitled-1")
+        )
+        result.should be_nil
+      end
+    end
   end
 end
