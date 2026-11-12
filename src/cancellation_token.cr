@@ -29,8 +29,9 @@ class CancellationToken
     @channel.closed?
   end
 
+  # Raises `CancellationException` if the token is cancelled, non-blocking
   def cancelled! : Nil
-    raise CancellationException.new
+    raise CancellationException.new if cancelled?
   end
 end
 
