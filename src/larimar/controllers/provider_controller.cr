@@ -126,6 +126,8 @@ class Larimar::ProviderController < Larimar::Controller
     return unless (document = @documents[document_uri]?)
 
     document.mutex.synchronize do
+      next unless open?(document)
+
       changes.each do |change|
         case change
         when LSProtocol::TextDocumentContentChangeWholeDocument
@@ -150,10 +152,20 @@ class Larimar::ProviderController < Larimar::Controller
     return unless (document = @documents[document_uri]?)
 
     document.mutex.synchronize do
+      next unless open?(document)
+
       @providers.each do |provider|
         provider.on_save(document)
       end
     end
+  end
+
+  # Returns `true` unless *document* has been closed (or reopened as another document) since.
+  #
+  # Each notification is handled in its own fiber, so a change might get handled
+  # after the document has been closed, while waiting for its lock.
+  private def open?(document : TextDocument) : Bool
+    @documents[document.uri]?.same?(document)
   end
 
   # Requests
