@@ -9,7 +9,10 @@ class Larimar::ProviderController < Larimar::Controller
 
   @request_meta_mutex : Mutex = Mutex.new
 
+  # Notifications are handled concurrently, each in its own fiber
   @documents : Hash(URI, TextDocument) = Hash(URI, TextDocument).new
+  @documents_mutex : Mutex = Mutex.new
+
   @providers : Array(Provider) = Array(Provider).new
 
   def on_init(init_params : LSProtocol::InitializeParams) : LSProtocol::InitializeResult
@@ -75,6 +78,11 @@ class Larimar::ProviderController < Larimar::Controller
     @providers << provider
   end
 
+  # Returns the open document with the given *uri*, or `nil` if there's none
+  def document?(uri : URI) : TextDocument?
+    @documents_mutex.synchronize { @documents[uri]? }
+  end
+
   # Notifications
 
   def on_notification(message : LSProtocol::CancelNotification) : Nil
@@ -94,7 +102,7 @@ class Larimar::ProviderController < Larimar::Controller
       params.text_document.version
     )
 
-    @documents[document_uri] = document
+    @documents_mutex.synchronize { @documents[document_uri] = document }
 
     document.mutex.synchronize do
       @providers.each do |provider|
@@ -107,10 +115,10 @@ class Larimar::ProviderController < Larimar::Controller
     params = message.params
     document_uri = params.text_document.uri
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.synchronize do
-      @documents.delete(document_uri)
+      @documents_mutex.synchronize { @documents.delete(document_uri) }
 
       @providers.each do |provider|
         provider.on_close(document)
@@ -123,7 +131,7 @@ class Larimar::ProviderController < Larimar::Controller
     document_uri = params.text_document.uri
     changes = params.content_changes
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.synchronize do
       next unless open?(document)
@@ -149,7 +157,7 @@ class Larimar::ProviderController < Larimar::Controller
     params = message.params
     document_uri = params.text_document.uri
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.synchronize do
       next unless open?(document)
@@ -165,7 +173,7 @@ class Larimar::ProviderController < Larimar::Controller
   # Each notification is handled in its own fiber, so a change might get handled
   # after the document has been closed, while waiting for its lock.
   private def open?(document : TextDocument) : Bool
-    @documents[document.uri]?.same?(document)
+    document?(document.uri).same?(document)
   end
 
   # Requests
@@ -181,7 +189,7 @@ class Larimar::ProviderController < Larimar::Controller
     document_uri = params.text_document.uri
     symbols = [] of LSProtocol::DocumentSymbol
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.read do
       @providers.each do |provider|
@@ -216,7 +224,7 @@ class Larimar::ProviderController < Larimar::Controller
     position = params.position
     completion_items = [] of LSProtocol::CompletionItem
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.read do
       @providers.each do |provider|
@@ -251,7 +259,7 @@ class Larimar::ProviderController < Larimar::Controller
     position = params.position
     definition : LSProtocol::DefinitionResult = nil
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.read do
       @providers.each do |provider|
@@ -286,7 +294,7 @@ class Larimar::ProviderController < Larimar::Controller
     document_uri = params.text_document.uri
     folding_ranges = Array(LSProtocol::FoldingRange).new
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.read do
       @providers.each do |provider|
@@ -323,7 +331,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     code_actions = Array(LSProtocol::CodeAction | LSProtocol::Command).new
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.read do
       @providers.each do |provider|
@@ -387,7 +395,7 @@ class Larimar::ProviderController < Larimar::Controller
     position = params.position
     hover : LSProtocol::Hover? = nil
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.read do
       @providers.each do |provider|
@@ -427,7 +435,7 @@ class Larimar::ProviderController < Larimar::Controller
     range = params.range
     inlay_hints = Array(LSProtocol::InlayHint).new
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.read do
       @providers.each do |provider|
@@ -462,7 +470,7 @@ class Larimar::ProviderController < Larimar::Controller
     options = params.options
     edits = Array(LSProtocol::TextEdit).new
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.read do
       @providers.each do |provider|
@@ -497,7 +505,7 @@ class Larimar::ProviderController < Larimar::Controller
     document_uri = params.text_document.uri
     tokens = Array(SemanticToken).new
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.read do
       @providers.each do |provider|
@@ -534,7 +542,7 @@ class Larimar::ProviderController < Larimar::Controller
     document_uri = params.text_document.uri
     tokens = Array(SemanticToken).new
 
-    return unless (document = @documents[document_uri]?)
+    return unless (document = document?(document_uri))
 
     document.mutex.read do
       @providers.each do |provider|
