@@ -10,19 +10,21 @@ class Larimar::Server
   def initialize(@input : IO, @output : IO)
   end
 
-  def start(controller : Larimar::Controller)
+  # Serves *controller* until the input gets closed.
+  def start(controller : Larimar::Controller) : Nil
     controller.server = self
 
     Log.info { "Starting server..." }
 
-    handshake(controller)
+    return unless handshake(controller)
 
     Log.info { "Connected successfully." }
 
     server_loop(controller)
   end
 
-  def handshake(controller : Larimar::Controller)
+  # Returns `false` if the input got closed before the initialization.
+  def handshake(controller : Larimar::Controller) : Bool
     loop do
       init_msg = recv_msg
 
@@ -36,7 +38,7 @@ class Larimar::Server
         )
 
         send_msg(response)
-        break
+        return true
       when LSProtocol::Request
         error_msg = LSProtocol::ResponseErrorMessage.new(
           id: init_msg.id,
@@ -49,15 +51,24 @@ class Larimar::Server
         send_msg(error_msg)
       end
     rescue IO::Error
-      exit(1)
+      return false
     rescue e
       Log.error(exception: e) { e }
     end
   end
 
-  def server_loop(controller : Larimar::Controller)
+  # Returns once the input gets closed.
+  def server_loop(controller : Larimar::Controller) : Nil
     loop do
-      message = recv_msg
+      begin
+        message = recv_msg
+      rescue IO::Error
+        return
+      rescue e
+        # A malformed message shouldn't take the whole server down
+        Log.error(exception: e) { e }
+        next
+      end
 
       spawn do
         response : LSProtocol::Message?
@@ -130,7 +141,8 @@ class Larimar::Server
 
     2.times do
       header = @input.gets("\r\n", chomp: true)
-      break if header.nil? || header.empty?
+      raise IO::EOFError.new if header.nil?
+      break if header.empty?
 
       name, value = header.split(":")
       case name
@@ -150,7 +162,7 @@ class Larimar::Server
     content_bytes = Bytes.new(content_length)
 
     if @input.read_fully?(content_bytes).nil?
-      raise "Content-Length #{content_length} does not match actual length"
+      raise IO::EOFError.new("Content-Length #{content_length} does not match actual length")
     end
 
     content = String.new(content_bytes)
