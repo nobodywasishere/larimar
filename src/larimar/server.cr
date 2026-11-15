@@ -70,52 +70,69 @@ class Larimar::Server
         next
       end
 
+      dispatch(controller, message)
+    end
+  end
+
+  # Handles *message* using *controller*, mostly in a new fiber.
+  #
+  # Text synchronization notifications are handled right away instead,
+  # as they need to be applied to the documents in the order they were sent.
+  def dispatch(controller : Larimar::Controller, message : LSProtocol::Message) : Nil
+    case message
+    when LSProtocol::DidOpenTextDocumentNotification,
+         LSProtocol::DidChangeTextDocumentNotification,
+         LSProtocol::DidCloseTextDocumentNotification
+      handle_message(controller, message)
+    else
+      spawn handle_message(controller, message)
+    end
+  end
+
+  private def handle_message(controller : Larimar::Controller, message : LSProtocol::Message) : Nil
+    response : LSProtocol::Message?
+    if (message_id = message.id)
+      nil_response = LSProtocol::ResponseMessage.new(id: message_id, result: nil)
+    end
+
+    case message
+    when LSProtocol::ExitNotification
+      exit
+    when LSProtocol::ShutdownRequest
+      # Not using ShutdownResponse as it doesn't include the result
+      response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
+
+      # Sometimes the upstream may not send the exit notification,
+      # leading to a zombie process being leftover even if the client is closed.
+      # Shutdown after 3 seconds regardless
       spawn do
-        response : LSProtocol::Message?
-        if (message_id = message.id)
-          nil_response = LSProtocol::ResponseMessage.new(id: message_id, result: nil)
-        end
-
-        case message
-        when LSProtocol::ExitNotification
-          exit
-        when LSProtocol::ShutdownRequest
-          # Not using ShutdownResponse as it doesn't include the result
-          response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
-
-          # Sometimes the upstream may not send the exit notification,
-          # leading to a zombie process being leftover even if the client is closed.
-          # Shutdown after 3 seconds regardless
-          spawn do
-            sleep(3.seconds)
-            exit
-          end
-        when LSProtocol::InitializedNotification
-          controller.when_ready
-        when LSProtocol::Request
-          response = controller.on_request(message) || nil_response
-
-          if response.nil?
-            Log.error { "Error: No response for #{message.class}" }
-          end
-        when LSProtocol::Notification
-          controller.on_notification(message)
-        when LSProtocol::Response
-          controller.on_response(message)
-        end
-
-        if response
-          send_msg(response)
-        end
-      rescue e
-        Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
-
-        if message.is_a? LSProtocol::Request
-          response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
-
-          send_msg(response)
-        end
+        sleep(3.seconds)
+        exit
       end
+    when LSProtocol::InitializedNotification
+      controller.when_ready
+    when LSProtocol::Request
+      response = controller.on_request(message) || nil_response
+
+      if response.nil?
+        Log.error { "Error: No response for #{message.class}" }
+      end
+    when LSProtocol::Notification
+      controller.on_notification(message)
+    when LSProtocol::Response
+      controller.on_response(message)
+    end
+
+    if response
+      send_msg(response)
+    end
+  rescue e
+    Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
+
+    if message.is_a? LSProtocol::Request
+      response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
+
+      send_msg(response)
     end
   end
 

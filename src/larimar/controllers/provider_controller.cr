@@ -107,9 +107,11 @@ class Larimar::ProviderController < Larimar::Controller
       position_encoding
     )
 
-    @documents_mutex.synchronize { @documents[document_uri] = document }
-
+    # Published while locked, so that nothing gets to use the document
+    # before the providers had a chance to handle its opening
     document.mutex.synchronize do
+      @documents_mutex.synchronize { @documents[document_uri] = document }
+
       @providers.each do |provider|
         provider.on_open(document)
       end
