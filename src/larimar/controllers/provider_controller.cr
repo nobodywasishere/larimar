@@ -5,7 +5,7 @@ class Larimar::ProviderController < Larimar::Controller
   getter workspace_folders : Array(LSProtocol::WorkspaceFolder)?
 
   # The encoding of the character offsets in the positions, as negotiated with the client
-  getter position_encoding : LSProtocol::PositionEncodingKind = :utf16
+  getter position_encoding : LSProtocol::PositionEncodingKind = :utf8
 
   @pending_requests : Set(Int32 | String) = Set(Int32 | String).new
   @cancel_tokens : Hash(Int32 | String, CancellationTokenSource) = Hash(Int32 | String, CancellationTokenSource).new

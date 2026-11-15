@@ -26,9 +26,9 @@ end
 
 describe Larimar::TextDocument do
   describe "#position_to_index" do
-    it "counts UTF-16 code units by default" do
+    it "counts UTF-8 code units by default" do
       Larimar::TextDocument.new(TEXT, URI_SUBJECT)
-        .position_to_index(position(0, 4)).should eq(3)
+        .position_to_index(position(0, 7)).should eq(3)
     end
 
     {% for encoding, offsets in {

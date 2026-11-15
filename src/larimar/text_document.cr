@@ -14,7 +14,7 @@ class Larimar::TextDocument
     document : String,
     @uri : URI,
     @version : Int32 = 0,
-    @position_encoding : LSProtocol::PositionEncodingKind = :utf16,
+    @position_encoding : LSProtocol::PositionEncodingKind = :utf8,
   )
     @chars = document.chars
   end
