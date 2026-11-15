@@ -139,19 +139,22 @@ class Larimar::Server
     content_length = nil
     content_type = DEFAULT_CONTENT_TYPE
 
-    2.times do
+    # Headers are terminated by an empty line, which must be consumed as well
+    loop do
       header = @input.gets("\r\n", chomp: true)
       raise IO::EOFError.new if header.nil?
       break if header.empty?
 
-      name, value = header.split(":")
-      case name
-      when "Content-Length"
-        content_length = value.to_i
-      when "Content-Type"
-        content_type = value
+      name, _, value = header.partition(':')
+
+      # Header names are case-insensitive
+      case name.strip.downcase
+      when "content-length"
+        content_length = value.strip.to_i
+      when "content-type"
+        content_type = value.strip
       else
-        raise "Unknown header #{name}"
+        Log.warn { "Ignoring unknown header #{name}" }
       end
     end
 
