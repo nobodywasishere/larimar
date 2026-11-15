@@ -1,4 +1,6 @@
 require "../spec_helper"
+require "../../src/larimar/controllers/parser_controller"
+require "../../src/larimar/analysis/semantic_tokens_visitor"
 
 describe Larimar::Parser::Controller do
   context ".generate_semantic_tokens" do
@@ -49,8 +51,8 @@ describe Larimar::Parser::Controller do
     end
 
     it "convets tokens to semantic tokens (string)" do
-      document = Larimar::Parser::Document.new <<-SRC
-        puts "string \#{hello there + ""}".as?(String)
+      document = Larimar::Parser::Document.new <<-'SRC'
+        puts "string #{hello there + ""}".as?(String)
         SRC
 
       Larimar::Parser::Lexer.lex_full(document)
@@ -123,7 +125,7 @@ describe Larimar::Parser::Controller do
           line: 0, char: 1, size: 6, type: :VARIABLE
         ),
         Larimar::Parser::SemanticToken.new(
-          line: 1, char: 8, size: 10, type: :NAMESPACE
+          line: 1, char: 9, size: 10, type: :NAMESPACE
         ),
         Larimar::Parser::SemanticToken.new(
           line: 0, char: 10, size: 2, type: :OPERATOR

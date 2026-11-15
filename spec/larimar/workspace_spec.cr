@@ -10,7 +10,7 @@ describe Larimar::Workspace do
 
       next if result.nil?
 
-      Path.new(result.path).basename.should eq("larimar")
+      Path.new(result.path).should eq(Path.new(__DIR__, "..", "..").normalize)
     end
 
     it "returns nil if there's no shard.yml" do
@@ -28,7 +28,7 @@ describe Larimar::Workspace do
 
       next if result.nil?
 
-      Path.new(result.path).basename.should eq("larimar")
+      Path.new(result.path).should eq(Path.new(__DIR__, "..", "..").normalize)
     end
   end
 end

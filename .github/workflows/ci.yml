@@ -1,47 +1,71 @@
+name: CI
+
 on:
   push:
   pull_request:
     branches: [master]
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Download source
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       - name: Install Crystal
         uses: crystal-lang/install-crystal@v1
-      - name: Install Deps
-        run: |
-          sudo apt-get install -y \
-            automake \
-            build-essential \
-            git \
-            libbsd-dev \
-            libevent-dev \
-            libgmp-dev \
-            libgmpxx4ldbl \
-            libpcre2-dev \
-            libssl-dev \
-            libtool \
-            libxml2-dev \
-            libyaml-dev \
-            lld \
-            llvm \
-            llvm-dev\
-            libz-dev
-      - name: Set up tree-sitter
-        uses: tree-sitter/setup-action/cli@v1
         with:
-          tree-sitter-ref: latest
-      - name: Build tree-sitter shared library
+          crystal: 1.22.2
+      - name: Install native dependencies
         run: |
-          git clone https://github.com/tree-sitter/tree-sitter.git
-          cd tree-sitter
-          make
-          sudo make install
+          sudo apt-get update
+          sudo apt-get install -y build-essential libevent-dev libgmp-dev libpcre2-dev libssl-dev libxml2-dev libyaml-dev llvm-dev libz-dev
+      - name: Build tree-sitter runtime
+        run: |
+          git clone --depth 1 --branch v0.27.2 https://github.com/tree-sitter/tree-sitter.git "$RUNNER_TEMP/tree-sitter"
+          make -C "$RUNNER_TEMP/tree-sitter"
+          sudo make -C "$RUNNER_TEMP/tree-sitter" install
+          sudo ldconfig
+      - name: Build Crystal grammar
+        uses: actions/checkout@v4
+        with:
+          repository: crystal-lang-tools/tree-sitter-crystal
+          ref: 50ca9e6fcfb16a2cbcad59203cfd8ad650e25c49
+          path: lib/tree-sitter-crystal
+      - name: Configure Crystal grammar
+        run: |
+          make -C lib/tree-sitter-crystal
+          mkdir -p "$HOME/.config/tree-sitter"
+          printf '{"parser-directories":["%s/lib"]}\n' "$GITHUB_WORKSPACE" > "$HOME/.config/tree-sitter/config.json"
       - name: Install Shards
-        run: shards install
+        run: shards install --frozen
+      # Ameba is also used as a library by Larimar. Keep its sources available
+      # without adding the linter to the project's shard dependencies.
+      - name: Download Ameba library
+        uses: actions/checkout@v4
+        with:
+          repository: crystal-ameba/ameba
+          ref: v1.7.0
+          path: lib/ameba
+      - name: Install Crystal compiler dependencies
+        run: |
+          git clone --depth 1 --branch 1.22.2 https://github.com/crystal-lang/crystal.git "$RUNNER_TEMP/crystal"
+          (cd "$RUNNER_TEMP/crystal" && shards install --frozen)
+          printf 'CRYSTAL_PATH=%s:%s/crystal/lib\n' "$(crystal env CRYSTAL_PATH)" "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Check formatting
+        run: crystal tool format --check src spec
       - name: Run tests
         run: crystal spec
+      - name: Build server
+        run: shards build larimar
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Ameba lints
-        run: ./bin/ameba -c .ameba.yml
+        uses: crystal-ameba/github-action@v1.0.0
+        with:
+          config: .ameba.yml
