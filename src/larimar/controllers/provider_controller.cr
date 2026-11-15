@@ -4,6 +4,9 @@ class Larimar::ProviderController < Larimar::Controller
   getter capabilities : LSProtocol::ClientCapabilities?
   getter workspace_folders : Array(LSProtocol::WorkspaceFolder)?
 
+  # The encoding of the character offsets in the positions, as negotiated with the client
+  getter position_encoding : LSProtocol::PositionEncodingKind = :utf16
+
   @pending_requests : Set(Int32 | String) = Set(Int32 | String).new
   @cancel_tokens : Hash(Int32 | String, CancellationTokenSource) = Hash(Int32 | String, CancellationTokenSource).new
 
@@ -18,6 +21,7 @@ class Larimar::ProviderController < Larimar::Controller
   def on_init(init_params : LSProtocol::InitializeParams) : LSProtocol::InitializeResult
     @capabilities = init_params.capabilities
     @workspace_folders = init_params.workspace_folders
+    @position_encoding = handle_pos_encoding(init_params)
 
     @providers.each do |provider|
       provider.on_init(init_params)
@@ -26,7 +30,7 @@ class Larimar::ProviderController < Larimar::Controller
     LSProtocol::InitializeResult.new(
       LSProtocol::ServerCapabilities.new(
         text_document_sync: LSProtocol::TextDocumentSyncKind::Incremental,
-        position_encoding: handle_pos_encoding(init_params),
+        position_encoding: @position_encoding,
         document_formatting_provider: @providers.any?(FormattingProvider),
         document_symbol_provider: @providers.any?(DocumentSymbolProvider),
         completion_provider: if @providers.any?(CompletionItemProvider)
@@ -99,7 +103,8 @@ class Larimar::ProviderController < Larimar::Controller
     document = Larimar::TextDocument.new(
       params.text_document.text,
       params.text_document.uri,
-      params.text_document.version
+      params.text_document.version,
+      position_encoding
     )
 
     @documents_mutex.synchronize { @documents[document_uri] = document }
