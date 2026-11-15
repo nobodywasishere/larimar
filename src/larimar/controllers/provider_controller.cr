@@ -4,7 +4,7 @@ class Larimar::ProviderController < Larimar::Controller
   getter capabilities : LSProtocol::ClientCapabilities?
   getter workspace_folders : Array(LSProtocol::WorkspaceFolder)?
 
-  @pending_requests : Set(Int32 | String) = Set(Int32 | String).new
+  # Cancellation sources of the requests being handled, by their ids
   @cancel_tokens : Hash(Int32 | String, CancellationTokenSource) = Hash(Int32 | String, CancellationTokenSource).new
 
   @request_meta_mutex : Mutex = Mutex.new
@@ -178,12 +178,21 @@ class Larimar::ProviderController < Larimar::Controller
 
   # Requests
 
-  def on_request(message : LSProtocol::DocumentSymbolRequest)
-    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
-      @pending_requests << message.id
-      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
+  # Registers the request *id* as being handled, returning the token cancelling it.
+  private def track_request(id : Int32 | String) : CancellationToken
+    @request_meta_mutex.synchronize do
+      @cancel_tokens[id] = (token_source = CancellationTokenSource.new)
       token_source.token
     end
+  end
+
+  # Forgets about the request *id*, once handled.
+  private def untrack_request(id : Int32 | String) : Nil
+    @request_meta_mutex.synchronize { @cancel_tokens.delete(id) }
+  end
+
+  def on_request(message : LSProtocol::DocumentSymbolRequest)
+    cancel_token = track_request(message.id)
 
     params = message.params
     document_uri = params.text_document.uri
@@ -210,14 +219,12 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: nil
     )
+  ensure
+    untrack_request(message.id)
   end
 
   def on_request(message : LSProtocol::CompletionRequest)
-    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
-      @pending_requests << message.id
-      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
-      token_source.token
-    end
+    cancel_token = track_request(message.id)
 
     params = message.params
     document_uri = params.text_document.uri
@@ -245,14 +252,12 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: nil
     )
+  ensure
+    untrack_request(message.id)
   end
 
   def on_request(message : LSProtocol::DefinitionRequest)
-    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
-      @pending_requests << message.id
-      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
-      token_source.token
-    end
+    cancel_token = track_request(message.id)
 
     params = message.params
     document_uri = params.text_document.uri
@@ -281,14 +286,12 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: nil
     )
+  ensure
+    untrack_request(message.id)
   end
 
   def on_request(message : LSProtocol::FoldingRangeRequest)
-    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
-      @pending_requests << message.id
-      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
-      token_source.token
-    end
+    cancel_token = track_request(message.id)
 
     params = message.params
     document_uri = params.text_document.uri
@@ -315,14 +318,12 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: nil
     )
+  ensure
+    untrack_request(message.id)
   end
 
   def on_request(message : LSProtocol::CodeActionRequest)
-    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
-      @pending_requests << message.id
-      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
-      token_source.token
-    end
+    cancel_token = track_request(message.id)
 
     params = message.params
     document_uri = params.text_document.uri
@@ -352,14 +353,12 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: nil
     )
+  ensure
+    untrack_request(message.id)
   end
 
   def on_request(message : LSProtocol::CodeActionResolveRequest)
-    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
-      @pending_requests << message.id
-      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
-      token_source.token
-    end
+    cancel_token = track_request(message.id)
 
     params = message.params
     code_action = nil
@@ -381,14 +380,12 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: LSProtocol::CodeAction.new("Could not resolve code action.")
     )
+  ensure
+    untrack_request(message.id)
   end
 
   def on_request(message : LSProtocol::HoverRequest)
-    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
-      @pending_requests << message.id
-      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
-      token_source.token
-    end
+    cancel_token = track_request(message.id)
 
     params = message.params
     document_uri = params.text_document.uri
@@ -421,14 +418,12 @@ class Larimar::ProviderController < Larimar::Controller
         result: hover
       )
     end
+  ensure
+    untrack_request(message.id)
   end
 
   def on_request(message : LSProtocol::InlayHintRequest)
-    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
-      @pending_requests << message.id
-      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
-      token_source.token
-    end
+    cancel_token = track_request(message.id)
 
     params = message.params
     document_uri = params.text_document.uri
@@ -456,14 +451,12 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: nil
     )
+  ensure
+    untrack_request(message.id)
   end
 
   def on_request(message : LSProtocol::DocumentFormattingRequest)
-    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
-      @pending_requests << message.id
-      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
-      token_source.token
-    end
+    cancel_token = track_request(message.id)
 
     params = message.params
     document_uri = params.text_document.uri
@@ -492,14 +485,12 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: nil
     )
+  ensure
+    untrack_request(message.id)
   end
 
   def on_request(message : LSProtocol::SemanticTokensRequest)
-    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
-      @pending_requests << message.id
-      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
-      token_source.token
-    end
+    cancel_token = track_request(message.id)
 
     params = message.params
     document_uri = params.text_document.uri
@@ -528,14 +519,12 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: nil
     )
+  ensure
+    untrack_request(message.id)
   end
 
   def on_request(message : LSProtocol::SemanticTokensRangeRequest)
-    cancel_token : CancellationToken = @request_meta_mutex.synchronize do
-      @pending_requests << message.id
-      @cancel_tokens[message.id] = (token_source = CancellationTokenSource.new)
-      token_source.token
-    end
+    cancel_token = track_request(message.id)
 
     params = message.params
     range = params.range
@@ -583,5 +572,7 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: nil
     )
+  ensure
+    untrack_request(message.id)
   end
 end
