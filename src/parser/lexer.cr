@@ -1268,8 +1268,6 @@ class Larimar::Parser
       if ident_part_or_end?(peek_next_char)
         if scan_ident
           TokenKind::IDENT
-        else
-          nil
         end
       else
         next_char
@@ -1410,8 +1408,6 @@ class Larimar::Parser
         if ident_start?
           if scan_ident
             TokenKind::SYMBOL
-          else
-            nil
           end
         else
           TokenKind::OP_COLON

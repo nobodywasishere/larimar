@@ -1,4 +1,6 @@
 Excluded:
+  - lib
+  - bin
   - test.cr
 
 # Problems found: 7
