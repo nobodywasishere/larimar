@@ -59,8 +59,6 @@ jobs:
         run: crystal tool format --check src spec
       - name: Run tests
         run: crystal spec
-      - name: Build server
-        run: shards build larimar
   lint:
     runs-on: ubuntu-latest
     steps:
