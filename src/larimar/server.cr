@@ -86,7 +86,10 @@ class Larimar::Server
 
     # Returns `true` if every message dispatched so far has been handled.
     def idle? : Bool
-      text_sync_done.try(&.closed?) != false && others_done.all?(&.closed?)
+      text_sync_done = self.text_sync_done
+      return false if text_sync_done && !text_sync_done.closed?
+
+      others_done.all?(&.closed?)
     end
   end
 
