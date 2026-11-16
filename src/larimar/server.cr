@@ -74,14 +74,29 @@ class Larimar::Server
     end
   end
 
-  # Closed once the most recently dispatched text synchronization
-  # notification has been handled, along with all the ones before it.
+  # Keeps track of the messages dispatched about a document, each one
+  # with a channel which gets closed once the message has been handled.
+  private class DocumentQueue
+    # The most recent text synchronization notification, closed once
+    # handled, along with all the ones before it.
+    property text_sync_done : Channel(Nil)?
+
+    # The other messages dispatched since the most recent text synchronization notification.
+    getter others_done = [] of Channel(Nil)
+
+    # Returns `true` if every message dispatched so far has been handled.
+    def idle? : Bool
+      text_sync_done.try(&.closed?) != false && others_done.all?(&.closed?)
+    end
+  end
+
+  # Messages dispatched so far, by the documents they're about.
   #
   # NOTE: Only ever accessed by the fiber calling `#dispatch`.
-  @text_sync_done : Channel(Nil)?
+  @document_queues = Hash(URI, DocumentQueue).new
 
-  # Closed once each of the messages dispatched since the most recent
-  # text synchronization notification has been handled.
+  # Messages dispatched so far that aren't about a document, each one
+  # with a channel which gets closed once the message has been handled.
   #
   # NOTE: Only ever accessed by the fiber calling `#dispatch`.
   @others_done = [] of Channel(Nil)
@@ -92,22 +107,35 @@ class Larimar::Server
   #
   # Messages see the documents as the client did when sending them:
   # text synchronization notifications are applied in the order they were
-  # sent, once every message sent before them has been handled, while
-  # other messages wait for the text synchronization notifications sent
-  # before them, except the ones that need to get through right away.
+  # sent, once every message sent before them about the same document,
+  # or no document at all, has been handled. Other messages wait for the
+  # text synchronization notifications sent before them about the same
+  # document, or about any document if they aren't about one, except
+  # the ones that need to get through right away.
   def dispatch(controller : Larimar::Controller, message : LSProtocol::Message) : Nil
     wait_for = [] of Channel(Nil)
-    done = nil
+    done = Channel(Nil).new unless urgent?(message)
 
-    unless urgent?(message)
-      @text_sync_done.try { |text_sync_done| wait_for << text_sync_done }
-      done = Channel(Nil).new
+    if done
+      if (uri = document_uri(message))
+        queue = @document_queues.put_if_absent(uri) { DocumentQueue.new }
+        queue.text_sync_done.try { |text_sync_done| wait_for << text_sync_done }
 
-      if text_sync?(message)
-        wait_for.concat(@others_done)
-        @others_done.clear
-        @text_sync_done = done
+        if text_sync?(message)
+          wait_for.concat(queue.others_done)
+          wait_for.concat(@others_done.reject!(&.closed?))
+          queue.others_done.clear
+          queue.text_sync_done = done
+        else
+          queue.others_done.reject!(&.closed?)
+          queue.others_done << done
+        end
       else
+        @document_queues.reject! { |_, queue| queue.idle? }
+        @document_queues.each_value do |queue|
+          queue.text_sync_done.try { |text_sync_done| wait_for << text_sync_done }
+        end
+
         @others_done.reject!(&.closed?)
         @others_done << done
       end
@@ -122,6 +150,15 @@ class Larimar::Server
     ensure
       done.try &.close
     end
+  end
+
+  # Returns the URI of the document *message* is about, if any.
+  private def document_uri(message : LSProtocol::Message) : URI?
+    return unless message.responds_to?(:params)
+    return unless (params = message.params).responds_to?(:text_document)
+    return unless (text_document = params.text_document).responds_to?(:uri)
+
+    text_document.uri
   end
 
   # Returns `true` if *message* changes the contents of the documents.

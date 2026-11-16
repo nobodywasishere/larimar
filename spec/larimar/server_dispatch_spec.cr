@@ -83,9 +83,9 @@ private def open_notification
   })
 end
 
-private def change_notification(version)
+private def change_notification(version, uri = URI_STRING)
   notification("textDocument/didChange", {
-    textDocument:   {uri: URI_STRING, version: version},
+    textDocument:   {uri: uri, version: version},
     contentChanges: [{text: "v#{version}"}],
   })
 end
@@ -96,9 +96,19 @@ private def close_notification
   })
 end
 
-private def save_notification
+private def save_notification(uri = URI_STRING)
   notification("textDocument/didSave", {
-    textDocument: {uri: URI_STRING},
+    textDocument: {uri: uri},
+  })
+end
+
+# A request which isn't about any document
+private def workspace_symbol_request(id)
+  message({
+    jsonrpc: "2.0",
+    id:      id,
+    method:  "workspace/symbol",
+    params:  {query: ""},
   })
 end
 
@@ -223,6 +233,55 @@ describe Larimar::Server do
       controller.request_gate.close
       wait_until { controller.messages.size == 3 }
       controller.messages.should eq([save, request, change])
+    end
+
+    it "doesn't have messages wait for the edits of other documents" do
+      controller = RecordingController.new(gated: true)
+      server = new_server
+
+      save = save_notification("file:///nonexistent/other.cr")
+
+      server.dispatch(controller, change_notification(2))
+      server.dispatch(controller, save)
+
+      wait_until { controller.messages == [save] }
+      controller.change_gate.close
+    end
+
+    it "has messages about no document wait for the edits of every document" do
+      controller = RecordingController.new(gated: true)
+      server = new_server
+
+      change = change_notification(2, "file:///nonexistent/other.cr")
+      request = workspace_symbol_request(1)
+
+      server.dispatch(controller, change)
+      server.dispatch(controller, request)
+
+      sleep 20.milliseconds
+      controller.messages.should be_empty
+
+      controller.change_gate.close
+      wait_until { controller.messages.size == 2 }
+      controller.messages.should eq([change, request])
+    end
+
+    it "has edits wait for the messages about no document sent before them" do
+      controller = RecordingController.new(gated_requests: true)
+      server = new_server
+
+      request = workspace_symbol_request(1)
+      change = change_notification(2)
+
+      server.dispatch(controller, request)
+      server.dispatch(controller, change)
+
+      sleep 20.milliseconds
+      controller.messages.should be_empty
+
+      controller.request_gate.close
+      wait_until { controller.messages.size == 2 }
+      controller.messages.should eq([request, change])
     end
 
     it "answers a request cancelled while waiting for an edit, without handling it" do
