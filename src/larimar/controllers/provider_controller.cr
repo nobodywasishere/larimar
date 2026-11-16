@@ -194,11 +194,6 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: symbols
     )
-  rescue CancellationException
-    LSProtocol::DocumentSymbolResponse.new(
-      id: message.id,
-      result: nil
-    )
   end
 
   def on_request(message : LSProtocol::CompletionRequest, cancel_token : CancellationToken)
@@ -222,11 +217,6 @@ class Larimar::ProviderController < Larimar::Controller
     LSProtocol::CompletionResponse.new(
       id: message.id,
       result: completion_items
-    )
-  rescue CancellationException
-    LSProtocol::CompletionResponse.new(
-      id: message.id,
-      result: nil
     )
   end
 
@@ -253,11 +243,6 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: definition
     )
-  rescue CancellationException
-    LSProtocol::DefinitionResponse.new(
-      id: message.id,
-      result: nil
-    )
   end
 
   def on_request(message : LSProtocol::FoldingRangeRequest, cancel_token : CancellationToken)
@@ -280,11 +265,6 @@ class Larimar::ProviderController < Larimar::Controller
     LSProtocol::FoldingRangeResponse.new(
       id: message.id,
       result: folding_ranges
-    )
-  rescue CancellationException
-    LSProtocol::FoldingRangeResponse.new(
-      id: message.id,
-      result: nil
     )
   end
 
@@ -312,11 +292,6 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: code_actions
     )
-  rescue CancellationException
-    LSProtocol::CodeActionResponse.new(
-      id: message.id,
-      result: nil
-    )
   end
 
   def on_request(message : LSProtocol::CodeActionResolveRequest, cancel_token : CancellationToken)
@@ -334,11 +309,6 @@ class Larimar::ProviderController < Larimar::Controller
     LSProtocol::CodeActionResolveResponse.new(
       id: message.id,
       result: code_action || LSProtocol::CodeAction.new("Could not resolve code action.")
-    )
-  rescue CancellationException
-    LSProtocol::CodeActionResolveResponse.new(
-      id: message.id,
-      result: LSProtocol::CodeAction.new("Could not resolve code action.")
     )
   end
 
@@ -361,13 +331,6 @@ class Larimar::ProviderController < Larimar::Controller
       end
     end
 
-    if hover
-      LSProtocol::HoverResponse.new(
-        id: message.id,
-        result: hover
-      )
-    end
-  rescue CancellationException
     if hover
       LSProtocol::HoverResponse.new(
         id: message.id,
@@ -398,11 +361,6 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: inlay_hints
     )
-  rescue CancellationException
-    LSProtocol::InlayHintResponse.new(
-      id: message.id,
-      result: nil
-    )
   end
 
   def on_request(message : LSProtocol::DocumentFormattingRequest, cancel_token : CancellationToken)
@@ -428,11 +386,6 @@ class Larimar::ProviderController < Larimar::Controller
       id: message.id,
       result: edits
     )
-  rescue CancellationException
-    LSProtocol::DocumentFormattingResponse.new(
-      id: message.id,
-      result: nil
-    )
   end
 
   def on_request(message : LSProtocol::SemanticTokensRequest, cancel_token : CancellationToken)
@@ -457,11 +410,6 @@ class Larimar::ProviderController < Larimar::Controller
       result: LSProtocol::SemanticTokens.new(
         data: tokens.flat_map(&.to_a)
       )
-    )
-  rescue CancellationException
-    LSProtocol::SemanticTokensResponse.new(
-      id: message.id,
-      result: nil
     )
   end
 
@@ -506,11 +454,6 @@ class Larimar::ProviderController < Larimar::Controller
       result: LSProtocol::SemanticTokens.new(
         data: tokens.flat_map(&.to_a)
       )
-    )
-  rescue CancellationException
-    LSProtocol::SemanticTokensRangeResponse.new(
-      id: message.id,
-      result: nil
     )
   end
 end
