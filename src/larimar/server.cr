@@ -141,12 +141,26 @@ class Larimar::Server
       end
     end
 
-    # Tracked right away, so that the request can get cancelled while waiting
-    cancel_token = track_request(message.id) if message.is_a?(LSProtocol::Request)
+    if (request = message).is_a?(LSProtocol::Request)
+      # Tracked right away, so that the request can get cancelled while waiting
+      cancel_token = track_request(request.id)
 
+      spawn_handler(wait_for, done) do
+        handle_request(controller, request, cancel_token)
+      end
+    else
+      spawn_handler(wait_for, done) do
+        handle_message(controller, message)
+      end
+    end
+  end
+
+  # Spawns a fiber waiting for every channel of *wait_for* to get closed,
+  # then running the given block, closing *done* once it's finished.
+  private def spawn_handler(wait_for : Array(Channel(Nil)), done : Channel(Nil)?, &block : ->) : Nil
     spawn do
       wait_for.each(&.receive?)
-      handle_message(controller, message, cancel_token)
+      block.call
     ensure
       done.try &.close
     end
@@ -208,65 +222,56 @@ class Larimar::Server
       .try(&.cancel)
   end
 
-  private def handle_message(controller : Larimar::Controller, message : LSProtocol::Message, cancel_token : CancellationToken? = nil) : Nil
-    response : LSProtocol::Message?
-    if (message_id = message.id)
-      nil_response = LSProtocol::ResponseMessage.new(id: message_id, result: nil)
-    end
+  # Handles the *request* using *controller*, answering it.
+  #
+  # The *cancel_token* is the one returned by `#track_request` for it.
+  private def handle_request(controller : Larimar::Controller, request : LSProtocol::Request, cancel_token : CancellationToken) : Nil
+    response =
+      if cancel_token.cancelled?
+        # Got cancelled before it could be handled
+        request_cancelled_response(request.id)
+      else
+        case request
+        when LSProtocol::ShutdownRequest
+          # Sometimes the upstream may not send the exit notification,
+          # leading to a zombie process being leftover even if the client is closed.
+          # Shutdown after 3 seconds regardless
+          spawn do
+            sleep(3.seconds)
+            exit
+          end
+          # Not using ShutdownResponse as it doesn't include the result
+          nil
+        else
+          controller.on_request(request, cancel_token)
+        end || LSProtocol::ResponseMessage.new(id: request.id, result: nil)
+      end
 
+    send_msg(response)
+  rescue e
+    Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
+
+    send_msg(LSProtocol::ResponseMessage.new(id: request.id, result: nil))
+  ensure
+    untrack_request(request.id)
+  end
+
+  # Handles the *message*, other than a request, using *controller*.
+  private def handle_message(controller : Larimar::Controller, message : LSProtocol::Message) : Nil
     case message
     when LSProtocol::CancelNotification
       cancel_request(message.params.id)
     when LSProtocol::ExitNotification
       exit
-    when LSProtocol::ShutdownRequest
-      # Not using ShutdownResponse as it doesn't include the result
-      response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
-
-      # Sometimes the upstream may not send the exit notification,
-      # leading to a zombie process being leftover even if the client is closed.
-      # Shutdown after 3 seconds regardless
-      spawn do
-        sleep(3.seconds)
-        exit
-      end
     when LSProtocol::InitializedNotification
       controller.when_ready
-    when LSProtocol::Request
-      begin
-        cancel_token ||= track_request(message.id)
-
-        response =
-          if cancel_token.cancelled?
-            # Got cancelled before it could be handled
-            request_cancelled_response(message.id)
-          else
-            controller.on_request(message, cancel_token) || nil_response
-          end
-      ensure
-        untrack_request(message.id)
-      end
-
-      if response.nil?
-        Log.error { "Error: No response for #{message.class}" }
-      end
     when LSProtocol::Notification
       controller.on_notification(message)
     when LSProtocol::Response
       controller.on_response(message)
     end
-
-    if response
-      send_msg(response)
-    end
   rescue e
     Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
-
-    if message.is_a? LSProtocol::Request
-      response = LSProtocol::ResponseMessage.new(id: message.id, result: nil)
-
-      send_msg(response)
-    end
   end
 
   # Transmit methods
