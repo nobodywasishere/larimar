@@ -295,6 +295,24 @@ describe Larimar::Server do
       controller.messages.should eq([request, change])
     end
 
+    it "forgets about the documents once closed" do
+      controller = RecordingController.new
+      server = new_server
+
+      other_uri = "file:///nonexistent/other.cr"
+
+      server.dispatch(controller, open_notification)
+      server.dispatch(controller, close_notification)
+      wait_until { controller.messages.size == 2 }
+
+      server.dispatch(controller, change_notification(2, other_uri))
+      server.dispatch(controller, notification("textDocument/didClose", {
+        textDocument: {uri: other_uri},
+      }))
+
+      server.@document_queues.keys.should eq([URI.parse(other_uri)])
+    end
+
     it "answers a request cancelled while waiting for an edit, without handling it" do
       controller = RecordingController.new(gated: true)
       server = new_server

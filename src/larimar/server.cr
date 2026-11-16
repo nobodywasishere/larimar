@@ -121,6 +121,10 @@ class Larimar::Server
 
     if done
       if (uri = document_uri(message))
+        # Most of the queues of the closed documents are idle by the time
+        # another document gets closed, so that's when they're dropped
+        drop_idle_document_queues if message.is_a?(LSProtocol::DidCloseTextDocumentNotification)
+
         queue = @document_queues.put_if_absent(uri) { DocumentQueue.new }
         queue.text_sync_done.try { |text_sync_done| wait_for << text_sync_done }
 
@@ -134,7 +138,7 @@ class Larimar::Server
           queue.others_done << done
         end
       else
-        @document_queues.reject! { |_, queue| queue.idle? }
+        drop_idle_document_queues
         @document_queues.each_value do |queue|
           queue.text_sync_done.try { |text_sync_done| wait_for << text_sync_done }
         end
@@ -156,6 +160,12 @@ class Larimar::Server
         handle_message(controller, message)
       end
     end
+  end
+
+  # Drops the queues of the documents with no message left to handle,
+  # which are as good as new ones.
+  private def drop_idle_document_queues : Nil
+    @document_queues.reject! { |_, queue| queue.idle? }
   end
 
   # Spawns a fiber waiting for every channel of *wait_for* to get closed,
