@@ -25,7 +25,7 @@ private class RecordingController < Larimar::Controller
     LSProtocol::InitializeResult.new(LSProtocol::ServerCapabilities.new)
   end
 
-  def on_request(message) : LSProtocol::Message?
+  def on_request(message, cancel_token) : LSProtocol::Message?
     record(message)
     nil
   end
@@ -183,16 +183,19 @@ describe Larimar::Server do
       controller = RecordingController.new(gated: true)
       server = new_server
 
-      cancel = cancel_notification(1)
+      dispatched = Atomic(Bool).new(false)
 
       # Dispatching from another fiber, so that the spec fails instead of
       # blocking forever, should the notification be handled by the caller
       spawn do
         server.dispatch(controller, change_notification(2))
-        server.dispatch(controller, cancel)
+        server.dispatch(controller, change_notification(3))
+        server.dispatch(controller, save_notification)
+        dispatched.set(true)
       end
 
-      wait_until { controller.messages == [cancel] }
+      wait_until { dispatched.get }
+      controller.messages.should be_empty
       controller.change_gate.close
     end
 

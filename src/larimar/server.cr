@@ -116,6 +116,28 @@ class Larimar::Server
                   LSProtocol::Response)
   end
 
+  # Cancellation sources of the requests being handled, by their ids
+  @cancel_sources = Hash(Int32 | String, CancellationTokenSource).new
+  @cancel_sources_mutex = Mutex.new
+
+  # Registers the request *id* as being handled, returning the token cancelling it.
+  private def track_request(id : Int32 | String) : CancellationToken
+    @cancel_sources_mutex.synchronize do
+      (@cancel_sources[id] = CancellationTokenSource.new).token
+    end
+  end
+
+  # Forgets about the request *id*, once handled.
+  private def untrack_request(id : Int32 | String) : Nil
+    @cancel_sources_mutex.synchronize { @cancel_sources.delete(id) }
+  end
+
+  # Cancels the request *id*, if it's being handled.
+  private def cancel_request(id : Int32 | String) : Nil
+    @cancel_sources_mutex.synchronize { @cancel_sources.delete(id) }
+      .try(&.cancel)
+  end
+
   private def handle_message(controller : Larimar::Controller, message : LSProtocol::Message) : Nil
     response : LSProtocol::Message?
     if (message_id = message.id)
@@ -123,6 +145,8 @@ class Larimar::Server
     end
 
     case message
+    when LSProtocol::CancelNotification
+      cancel_request(message.params.id)
     when LSProtocol::ExitNotification
       exit
     when LSProtocol::ShutdownRequest
@@ -139,7 +163,12 @@ class Larimar::Server
     when LSProtocol::InitializedNotification
       controller.when_ready
     when LSProtocol::Request
-      response = controller.on_request(message) || nil_response
+      begin
+        cancel_token = track_request(message.id)
+        response = controller.on_request(message, cancel_token) || nil_response
+      ensure
+        untrack_request(message.id)
+      end
 
       if response.nil?
         Log.error { "Error: No response for #{message.class}" }
