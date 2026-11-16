@@ -90,30 +90,30 @@ class Larimar::Server
   # before them too, so that they see the documents as the client did,
   # except the ones that need to get through right away.
   def dispatch(controller : Larimar::Controller, message : LSProtocol::Message) : Nil
-    previous_text_sync_done = @text_sync_done
+    wait_for = @text_sync_done unless urgent?(message)
+    done = @text_sync_done = Channel(Nil).new if text_sync?(message)
 
-    case message
-    when LSProtocol::CancelNotification,
-         LSProtocol::ExitNotification,
-         LSProtocol::Response
-      spawn handle_message(controller, message)
-    when LSProtocol::DidOpenTextDocumentNotification,
-         LSProtocol::DidChangeTextDocumentNotification,
-         LSProtocol::DidCloseTextDocumentNotification
-      @text_sync_done = text_sync_done = Channel(Nil).new
-
-      spawn do
-        previous_text_sync_done.try &.receive?
-        handle_message(controller, message)
-      ensure
-        text_sync_done.close
-      end
-    else
-      spawn do
-        previous_text_sync_done.try &.receive?
-        handle_message(controller, message)
-      end
+    spawn do
+      wait_for.try &.receive?
+      handle_message(controller, message)
+    ensure
+      done.try &.close
     end
+  end
+
+  # Returns `true` if *message* changes the contents of the documents.
+  private def text_sync?(message : LSProtocol::Message) : Bool
+    message.is_a?(LSProtocol::DidOpenTextDocumentNotification |
+                  LSProtocol::DidChangeTextDocumentNotification |
+                  LSProtocol::DidCloseTextDocumentNotification)
+  end
+
+  # Returns `true` if *message* needs to be handled right away,
+  # not waiting for anything sent before it.
+  private def urgent?(message : LSProtocol::Message) : Bool
+    message.is_a?(LSProtocol::CancelNotification |
+                  LSProtocol::ExitNotification |
+                  LSProtocol::Response)
   end
 
   private def handle_message(controller : Larimar::Controller, message : LSProtocol::Message) : Nil
