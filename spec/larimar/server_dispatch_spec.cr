@@ -12,8 +12,14 @@ private class RecordingController < Larimar::Controller
   # Handling of a request waits for this channel to get closed
   getter request_gate = Channel(Nil).new
 
+  # Receives a value once handling of a request started
+  getter request_started = Channel(Nil).new(1)
+
   # Version of the `didChange` that's slow to handle
   property slow_change_version : Int32?
+
+  # Whether handling of a cancelled request raises `CancellationException`
+  property? raise_when_cancelled = false
 
   def initialize(gated : Bool = false, gated_requests : Bool = false)
     change_gate.close unless gated
@@ -30,7 +36,12 @@ private class RecordingController < Larimar::Controller
   end
 
   def on_request(message, cancel_token) : LSProtocol::Message?
+    select
+    when request_started.send(nil)
+    else
+    end
     request_gate.receive?
+    cancel_token.cancelled! if raise_when_cancelled? && cancel_token.cancelled?
     record(message)
     nil
   end
@@ -320,6 +331,26 @@ describe Larimar::Server do
       server.dispatch(controller, cancel_notification(1))
 
       wait_until { provider.cancelled? }
+      wait_until { server.output.to_s.includes?(%("id":1)) }
+      server.output.to_s.should contain(%("code":-32800))
+    end
+
+    it "answers a request raising once cancelled while being handled with `RequestCancelled`" do
+      controller = RecordingController.new(gated_requests: true)
+      controller.raise_when_cancelled = true
+      server = new_server
+
+      server.dispatch(controller, workspace_symbol_request(1))
+      controller.request_started.receive
+      server.dispatch(controller, cancel_notification(1))
+
+      # Lets the cancellation get handled while the request is being handled
+      sleep 20.milliseconds
+      controller.request_gate.close
+
+      wait_until { server.output.to_s.includes?(%("id":1)) }
+      server.output.to_s.should contain(%("code":-32800))
+      controller.messages.should be_empty
     end
   end
 end

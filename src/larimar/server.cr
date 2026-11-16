@@ -247,7 +247,12 @@ class Larimar::Server
         end || LSProtocol::ResponseMessage.new(id: request.id, result: nil)
       end
 
+    # Got cancelled while being handled, the client won't use the result anyway
+    response = request_cancelled_response(request.id) if cancel_token.cancelled?
+
     send_msg(response)
+  rescue CancellationException
+    send_msg(request_cancelled_response(request.id))
   rescue e
     Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
 
