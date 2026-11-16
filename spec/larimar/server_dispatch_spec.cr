@@ -21,6 +21,9 @@ private class RecordingController < Larimar::Controller
   # Whether handling of a cancelled request raises `CancellationException`
   property? raise_when_cancelled = false
 
+  # Whether handling of a request raises `CancellationException`, cancelled or not
+  property? raise_cancellation = false
+
   def initialize(gated : Bool = false, gated_requests : Bool = false)
     change_gate.close unless gated
     request_gate.close unless gated_requests
@@ -41,7 +44,8 @@ private class RecordingController < Larimar::Controller
     else
     end
     request_gate.receive?
-    cancel_token.cancelled! if raise_when_cancelled? && cancel_token.cancelled?
+    cancel_token.cancelled! if raise_when_cancelled?
+    raise CancellationException.new if raise_cancellation?
     record(message)
     nil
   end
@@ -369,6 +373,18 @@ describe Larimar::Server do
       wait_until { server.output.to_s.includes?(%("id":1)) }
       server.output.to_s.should contain(%("code":-32800))
       controller.messages.should be_empty
+    end
+
+    it "doesn't answer a request raising `CancellationException` uncancelled with `RequestCancelled`" do
+      controller = RecordingController.new
+      controller.raise_cancellation = true
+      server = new_server
+
+      server.dispatch(controller, workspace_symbol_request(1))
+
+      wait_until { server.output.to_s.includes?(%("id":1)) }
+      server.output.to_s.should_not contain(%("code":-32800))
+      server.output.to_s.should contain(%("result":null))
     end
   end
 end

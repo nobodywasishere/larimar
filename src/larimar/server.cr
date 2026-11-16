@@ -264,12 +264,15 @@ class Larimar::Server
     response = request_cancelled_response(request.id) if cancel_token.cancelled?
 
     send_msg(response)
-  rescue CancellationException
-    send_msg(request_cancelled_response(request.id))
   rescue e
-    Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
+    # Gave up as the request got cancelled
+    if e.is_a?(CancellationException) && cancel_token.cancelled?
+      send_msg(request_cancelled_response(request.id))
+    else
+      Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
 
-    send_msg(LSProtocol::ResponseMessage.new(id: request.id, result: nil))
+      send_msg(LSProtocol::ResponseMessage.new(id: request.id, result: nil))
+    end
   ensure
     untrack_request(request.id)
   end
