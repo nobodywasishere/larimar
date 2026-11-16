@@ -132,6 +132,7 @@ class Larimar::TreeSitterProvider < Larimar::Provider
     token : CancellationToken?,
   ) : Array(LSProtocol::FoldingRange)?
     tree = get_cached_tree(document)
+    line_index = LineIndex.new(document.to_s, document.position_encoding)
 
     query = TreeSitter::Query.new(
       CrystalParser.language,
@@ -148,11 +149,14 @@ class Larimar::TreeSitterProvider < Larimar::Provider
 
       next unless capture.rule.starts_with?("fold")
 
+      start_position = line_index.position(capture.node.start_point)
+      end_position = line_index.position(capture.node.end_point)
+
       folds << LSProtocol::FoldingRange.new(
-        start_line: capture.node.start_point.row.to_u32,
-        start_character: capture.node.start_point.column.to_u32,
-        end_line: capture.node.end_point.row.to_u32,
-        end_character: capture.node.end_point.column.to_u32,
+        start_line: start_position.line,
+        start_character: start_position.character,
+        end_line: end_position.line,
+        end_character: end_position.character,
         kind: capture.rule.lchop?("fold.")
       )
     end
@@ -166,6 +170,7 @@ class Larimar::TreeSitterProvider < Larimar::Provider
   ) : Array(LSProtocol::DocumentSymbol)?
     source = document.to_s
     tree = get_cached_tree(document)
+    line_index = LineIndex.new(source, document.position_encoding)
 
     query = TreeSitter::Query.new(
       CrystalParser.language,
@@ -192,7 +197,7 @@ class Larimar::TreeSitterProvider < Larimar::Provider
         curr_details << capture.text(source).strip
       when "name"
         curr_names << capture.text(source).strip
-        curr_selection_range = ts_node_to_range(capture.node)
+        curr_selection_range = ts_node_to_range(capture.node, line_index)
       else
         handle_new_symbol()
 
@@ -205,7 +210,7 @@ class Larimar::TreeSitterProvider < Larimar::Provider
         # create new item
         curr_kind = capture.rule.lchop?("item.").try { |i| LSProtocol::SymbolKind.parse?(i) } ||
                     LSProtocol::SymbolKind::Variable
-        curr_range = ts_node_to_range(capture.node)
+        curr_range = ts_node_to_range(capture.node, line_index)
       end
     end
 
@@ -224,16 +229,10 @@ class Larimar::TreeSitterProvider < Larimar::Provider
     end
   end
 
-  private def ts_node_to_range(node : TreeSitter::Node) : LSProtocol::Range
+  private def ts_node_to_range(node : TreeSitter::Node, line_index : LineIndex) : LSProtocol::Range
     LSProtocol::Range.new(
-      start: LSProtocol::Position.new(
-        line: node.start_point.row.to_u32,
-        character: node.start_point.column.to_u32
-      ),
-      end: LSProtocol::Position.new(
-        line: node.end_point.row.to_u32,
-        character: node.end_point.column.to_u32
-      )
+      start: line_index.position(node.start_point),
+      end: line_index.position(node.end_point)
     )
   end
 

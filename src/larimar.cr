@@ -23,6 +23,7 @@ require "./semantic/semantic_visitor"
 
 require "./larimar/log"
 require "./larimar/text_document"
+require "./larimar/line_index"
 require "./larimar/workspace"
 # require "./larimar/compiler"
 require "./larimar/server"
