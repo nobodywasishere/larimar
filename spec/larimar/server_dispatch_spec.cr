@@ -199,6 +199,26 @@ describe Larimar::Server do
       controller.change_gate.close
     end
 
+    it "answers a request cancelled while waiting for an edit, without handling it" do
+      controller = RecordingController.new(gated: true)
+      server = new_server
+
+      change = change_notification(2)
+
+      server.dispatch(controller, change)
+      server.dispatch(controller, definition_request(1))
+      server.dispatch(controller, cancel_notification(1))
+
+      # Lets the cancellation get handled while the edit is pending
+      sleep 20.milliseconds
+
+      controller.change_gate.close
+      wait_until { server.output.to_s.includes?(%("id":1)) }
+
+      server.output.to_s.should contain(%("code":-32800))
+      controller.messages.should eq([change])
+    end
+
     it "lets a request get cancelled while an edit waits for it" do
       server = new_server
       controller = Larimar::ProviderController.new
