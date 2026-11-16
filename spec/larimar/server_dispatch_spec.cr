@@ -3,7 +3,8 @@ require "../spec_helper"
 private URI_STRING = "file:///nonexistent/spec_subject.cr"
 
 private class RecordingController < Larimar::Controller
-  getter messages = [] of LSProtocol::Message
+  @messages = [] of LSProtocol::Message
+  @messages_mutex = Mutex.new
 
   # Handling of a `didChange` waits for this channel to get closed
   getter change_gate = Channel(Nil).new
@@ -15,23 +16,32 @@ private class RecordingController < Larimar::Controller
     change_gate.close unless gated
   end
 
+  # Returns the messages handled so far, in the order they were handled
+  def messages : Array(LSProtocol::Message)
+    @messages_mutex.synchronize { @messages.dup }
+  end
+
   def on_init(init_params) : LSProtocol::InitializeResult
     LSProtocol::InitializeResult.new(LSProtocol::ServerCapabilities.new)
   end
 
   def on_request(message) : LSProtocol::Message?
-    @messages << message
+    record(message)
     nil
   end
 
   def on_notification(message : LSProtocol::DidChangeTextDocumentNotification) : Nil
     change_gate.receive?
     sleep 10.milliseconds if message.params.text_document.version == slow_change_version
-    @messages << message
+    record(message)
   end
 
   def on_notification(message) : Nil
-    @messages << message
+    record(message)
+  end
+
+  private def record(message) : Nil
+    @messages_mutex.synchronize { @messages << message }
   end
 end
 
@@ -45,10 +55,10 @@ private class SlowDefinitionProvider < Larimar::Provider
     started.send(nil)
 
     deadline = Time.instant + 1.second
-    until token.not_nil!.cancelled? || Time.instant >= deadline
+    until !!token.try(&.cancelled?) || Time.instant >= deadline
       sleep 1.millisecond
     end
-    @cancelled = token.not_nil!.cancelled?
+    @cancelled = !!token.try(&.cancelled?)
 
     nil
   end
