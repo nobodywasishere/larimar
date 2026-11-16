@@ -74,18 +74,45 @@ class Larimar::Server
     end
   end
 
-  # Handles *message* using *controller*, mostly in a new fiber.
+  # Closed once the most recently dispatched text synchronization
+  # notification has been handled, along with all the ones before it.
   #
-  # Text synchronization notifications are handled right away instead,
-  # as they need to be applied to the documents in the order they were sent.
+  # NOTE: Only ever accessed by the fiber calling `#dispatch`.
+  @text_sync_done : Channel(Nil)?
+
+  # Handles *message* using *controller* in a new fiber, without ever
+  # blocking the caller, so that e.g. a `$/cancelRequest` can always get
+  # through to a request blocking a pending edit.
+  #
+  # Text synchronization notifications are applied to the documents
+  # in the order they were sent, each one waiting for the previous one.
+  # Other messages wait for the text synchronization notifications sent
+  # before them too, so that they see the documents as the client did,
+  # except the ones that need to get through right away.
   def dispatch(controller : Larimar::Controller, message : LSProtocol::Message) : Nil
+    previous_text_sync_done = @text_sync_done
+
     case message
+    when LSProtocol::CancelNotification,
+         LSProtocol::ExitNotification,
+         LSProtocol::Response
+      spawn handle_message(controller, message)
     when LSProtocol::DidOpenTextDocumentNotification,
          LSProtocol::DidChangeTextDocumentNotification,
          LSProtocol::DidCloseTextDocumentNotification
-      handle_message(controller, message)
+      @text_sync_done = text_sync_done = Channel(Nil).new
+
+      spawn do
+        previous_text_sync_done.try &.receive?
+        handle_message(controller, message)
+      ensure
+        text_sync_done.close
+      end
     else
-      spawn handle_message(controller, message)
+      spawn do
+        previous_text_sync_done.try &.receive?
+        handle_message(controller, message)
+      end
     end
   end
 
