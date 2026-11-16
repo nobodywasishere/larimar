@@ -4,10 +4,6 @@ shards:
     git: https://github.com/nobodywasishere/lsprotocol-crystal.git
     version: 0.1.0+git.commit.7f36ed016862b32d32befe1d3786658cfc67a84b
 
-  rwlock:
-    git: https://github.com/spider-gazelle/readers-writer.git
-    version: 1.0.7
-
   tree_sitter:
     git: https://github.com/crystal-lang-tools/crystal-tree-sitter.git
     version: 0.1.0+git.commit.1d46ca231a641b30b8e7fbbae7eba050f7717a9f

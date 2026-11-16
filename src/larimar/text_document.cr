@@ -5,7 +5,7 @@ class Larimar::TextDocument
 
   getter uri : URI
   getter version : Int32
-  getter mutex : RWLock = RWLock.new
+  getter mutex : Sync::RWLock = Sync::RWLock.new
 
   # The encoding of the character offsets in the positions, as negotiated with the client
   getter position_encoding : LSProtocol::PositionEncodingKind

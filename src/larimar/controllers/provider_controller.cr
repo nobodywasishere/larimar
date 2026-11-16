@@ -97,7 +97,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     # Published while locked, so that nothing gets to use the document
     # before the providers had a chance to handle its opening
-    document.mutex.synchronize do
+    document.mutex.write do
       @documents_mutex.synchronize { @documents[document_uri] = document }
 
       @providers.each do |provider|
@@ -112,7 +112,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless (document = document?(document_uri))
 
-    document.mutex.synchronize do
+    document.mutex.write do
       @documents_mutex.synchronize { @documents.delete(document_uri) }
 
       @providers.each do |provider|
@@ -128,7 +128,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless (document = document?(document_uri))
 
-    document.mutex.synchronize do
+    document.mutex.write do
       next unless open?(document)
 
       changes.each do |change|
@@ -154,7 +154,7 @@ class Larimar::ProviderController < Larimar::Controller
 
     return unless (document = document?(document_uri))
 
-    document.mutex.synchronize do
+    document.mutex.write do
       next unless open?(document)
 
       @providers.each do |provider|
