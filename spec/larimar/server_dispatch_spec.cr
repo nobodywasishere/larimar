@@ -9,11 +9,15 @@ private class RecordingController < Larimar::Controller
   # Handling of a `didChange` waits for this channel to get closed
   getter change_gate = Channel(Nil).new
 
+  # Handling of a request waits for this channel to get closed
+  getter request_gate = Channel(Nil).new
+
   # Version of the `didChange` that's slow to handle
   property slow_change_version : Int32?
 
-  def initialize(gated : Bool = false)
+  def initialize(gated : Bool = false, gated_requests : Bool = false)
     change_gate.close unless gated
+    request_gate.close unless gated_requests
   end
 
   # Returns the messages handled so far, in the order they were handled
@@ -26,6 +30,7 @@ private class RecordingController < Larimar::Controller
   end
 
   def on_request(message, cancel_token) : LSProtocol::Message?
+    request_gate.receive?
     record(message)
     nil
   end
@@ -197,6 +202,27 @@ describe Larimar::Server do
       wait_until { dispatched.get }
       controller.messages.should be_empty
       controller.change_gate.close
+    end
+
+    it "handles text synchronization notifications after the messages sent before them" do
+      controller = RecordingController.new(gated_requests: true)
+      server = new_server
+
+      request = definition_request(1)
+      save = save_notification
+      change = change_notification(2)
+
+      server.dispatch(controller, request)
+      server.dispatch(controller, save)
+      server.dispatch(controller, change)
+
+      wait_until { controller.messages == [save] }
+      sleep 20.milliseconds
+      controller.messages.should eq([save])
+
+      controller.request_gate.close
+      wait_until { controller.messages.size == 3 }
+      controller.messages.should eq([save, request, change])
     end
 
     it "answers a request cancelled while waiting for an edit, without handling it" do

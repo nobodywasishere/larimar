@@ -80,24 +80,44 @@ class Larimar::Server
   # NOTE: Only ever accessed by the fiber calling `#dispatch`.
   @text_sync_done : Channel(Nil)?
 
+  # Closed once each of the messages dispatched since the most recent
+  # text synchronization notification has been handled.
+  #
+  # NOTE: Only ever accessed by the fiber calling `#dispatch`.
+  @others_done = [] of Channel(Nil)
+
   # Handles *message* using *controller* in a new fiber, without ever
   # blocking the caller, so that e.g. a `$/cancelRequest` can always get
   # through to a request blocking a pending edit.
   #
-  # Text synchronization notifications are applied to the documents
-  # in the order they were sent, each one waiting for the previous one.
-  # Other messages wait for the text synchronization notifications sent
-  # before them too, so that they see the documents as the client did,
-  # except the ones that need to get through right away.
+  # Messages see the documents as the client did when sending them:
+  # text synchronization notifications are applied in the order they were
+  # sent, once every message sent before them has been handled, while
+  # other messages wait for the text synchronization notifications sent
+  # before them, except the ones that need to get through right away.
   def dispatch(controller : Larimar::Controller, message : LSProtocol::Message) : Nil
-    wait_for = @text_sync_done unless urgent?(message)
-    done = @text_sync_done = Channel(Nil).new if text_sync?(message)
+    wait_for = [] of Channel(Nil)
+    done = nil
+
+    unless urgent?(message)
+      @text_sync_done.try { |text_sync_done| wait_for << text_sync_done }
+      done = Channel(Nil).new
+
+      if text_sync?(message)
+        wait_for.concat(@others_done)
+        @others_done.clear
+        @text_sync_done = done
+      else
+        @others_done.reject!(&.closed?)
+        @others_done << done
+      end
+    end
 
     # Tracked right away, so that the request can get cancelled while waiting
     cancel_token = track_request(message.id) if message.is_a?(LSProtocol::Request)
 
     spawn do
-      wait_for.try &.receive?
+      wait_for.each(&.receive?)
       handle_message(controller, message, cancel_token)
     ensure
       done.try &.close
