@@ -110,7 +110,8 @@ class Larimar::Server
 
   # Handles *message* using *controller* in a new fiber, without ever
   # blocking the caller, so that e.g. a `$/cancelRequest` can always get
-  # through to a request blocking a pending edit.
+  # through to a request blocking a pending edit. The `$/cancelRequest`
+  # is applied before returning, so it's never about a later request.
   #
   # Messages see the documents as the client did when sending them:
   # text synchronization notifications are applied in the order they were
@@ -120,6 +121,13 @@ class Larimar::Server
   # document, or about any document if they aren't about one, except
   # the ones that need to get through right away.
   def dispatch(controller : Larimar::Controller, message : LSProtocol::Message) : Nil
+    if message.is_a?(LSProtocol::CancelNotification)
+      # Cancelled right away, as once the request is answered the client
+      # may reuse its id, and the cancellation must not reach the new one
+      cancel_request(message.params.id)
+      return
+    end
+
     wait_for = [] of Channel(Nil)
     done = Channel(Nil).new unless urgent?(message)
 
@@ -202,8 +210,7 @@ class Larimar::Server
   # Returns `true` if *message* needs to be handled right away,
   # not waiting for anything sent before it.
   private def urgent?(message : LSProtocol::Message) : Bool
-    message.is_a?(LSProtocol::CancelNotification |
-                  LSProtocol::ShutdownRequest |
+    message.is_a?(LSProtocol::ShutdownRequest |
                   LSProtocol::ExitNotification |
                   LSProtocol::Response)
   end
@@ -295,8 +302,6 @@ class Larimar::Server
   # Handles the *message*, other than a request, using *controller*.
   private def handle_message(controller : Larimar::Controller, message : LSProtocol::Message) : Nil
     case message
-    when LSProtocol::CancelNotification
-      cancel_request(message.params.id)
     when LSProtocol::ExitNotification
       exit
     when LSProtocol::InitializedNotification

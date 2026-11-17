@@ -435,6 +435,22 @@ describe Larimar::Server do
       controller.try(&.request_gate.close)
     end
 
+    it "does not apply an old cancellation to a later request reusing its ID" do
+      controller = RecordingController.new
+      server = new_server
+
+      server.dispatch(controller, workspace_symbol_request(1))
+      wait_until { server.output.to_s.scan(%("id":1)).size == 1 }
+
+      # Arrives too late for the request it's about, right before
+      # the client reuses the ID, with no chance to get handled in between
+      server.dispatch(controller, cancel_notification(1))
+      server.dispatch(controller, workspace_symbol_request(1))
+      wait_until { server.output.to_s.scan(%("id":1)).size == 2 }
+
+      server.output.to_s.should_not contain(%("code":-32800))
+    end
+
     it "answers shutdown while an edit is blocked" do
       controller = RecordingController.new(gated: true)
       server = new_server
