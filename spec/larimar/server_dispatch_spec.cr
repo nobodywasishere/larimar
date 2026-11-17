@@ -84,6 +84,23 @@ private class SlowDefinitionProvider < Larimar::Provider
   end
 end
 
+# Output pausing on the first flush, until `resume` gets closed
+private class DelayedFlush < IO::Memory
+  # Receives a value once the output got paused
+  getter flushed = Channel(Nil).new(1)
+
+  # Flushing waits for this channel to get closed
+  getter resume = Channel(Nil).new
+
+  def flush
+    unless resume.closed?
+      flushed.send(nil)
+      resume.receive?
+    end
+    super
+  end
+end
+
 private def message(payload)
   LSProtocol.parse_message(payload.to_json)
 end
@@ -388,6 +405,34 @@ describe Larimar::Server do
       wait_until { server.output.to_s.includes?(%("id":1)) }
       server.output.to_s.should_not contain(%("code":-32800))
       server.output.to_s.should contain(%("result":null))
+    end
+
+    it "keeps a reused request ID cancellable after the old flush completes" do
+      output = DelayedFlush.new
+      server = Larimar::Server.new(IO::Memory.new, output)
+      controller = RecordingController.new(gated_requests: true)
+
+      server.dispatch(RecordingController.new, workspace_symbol_request(1))
+      # The response is out, yet the handler of the request didn't finish
+      output.flushed.receive
+      output.to_s.should contain(%("id":1))
+
+      # The client is free to reuse the ID once it got the response
+      server.dispatch(controller, workspace_symbol_request(1))
+      controller.request_started.receive
+      output.resume.close
+      # Lets the handler of the first request finish
+      sleep 10.milliseconds
+      server.dispatch(controller, cancel_notification(1))
+      # Lets the cancellation get handled while the request is being handled
+      sleep 10.milliseconds
+      controller.request_gate.close
+
+      wait_until { output.to_s.scan(%("id":1)).size == 2 }
+      output.to_s.should contain(%("code":-32800))
+    ensure
+      output.try(&.resume.close)
+      controller.try(&.request_gate.close)
     end
 
     it "answers shutdown while an edit is blocked" do

@@ -220,8 +220,16 @@ class Larimar::Server
   end
 
   # Forgets about the request *id*, once handled.
-  private def untrack_request(id : Int32 | String) : Nil
-    @cancel_sources_mutex.synchronize { @cancel_sources.delete(id) }
+  #
+  # The *cancel_token* is the one returned by `#track_request` for it,
+  # so that a newer request reusing the *id* (allowed once the response
+  # got out) is left alone.
+  private def untrack_request(id : Int32 | String, cancel_token : CancellationToken) : Nil
+    @cancel_sources_mutex.synchronize do
+      if @cancel_sources[id]?.try(&.token.same?(cancel_token))
+        @cancel_sources.delete(id)
+      end
+    end
   end
 
   private def request_cancelled_response(id : Int32 | String) : LSProtocol::ResponseErrorMessage
@@ -281,7 +289,7 @@ class Larimar::Server
       send_msg(LSProtocol::ResponseMessage.new(id: request.id, result: nil))
     end
   ensure
-    untrack_request(request.id)
+    untrack_request(request.id, cancel_token)
   end
 
   # Handles the *message*, other than a request, using *controller*.
