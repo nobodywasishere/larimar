@@ -137,7 +137,7 @@ class Larimar::Server
 
   def recv_msg : LSProtocol::Message
     content_length = nil
-    content_type = DEFAULT_CONTENT_TYPE
+    # content_type = DEFAULT_CONTENT_TYPE
 
     # Headers are terminated by an empty line, which must be consumed as well
     loop do
@@ -152,7 +152,7 @@ class Larimar::Server
       when "content-length"
         content_length = value.strip.to_i
       when "content-type"
-        content_type = value.strip
+        # content_type = value.strip
       else
         Log.warn { "Ignoring unknown header #{name}" }
       end
