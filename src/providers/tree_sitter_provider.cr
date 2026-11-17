@@ -9,7 +9,7 @@ class Larimar::TreeSitterProvider < Larimar::Provider
   CrystalParser = TreeSitter::Parser.new("crystal")
 
   @forest : Hash({URI, Int32}, TreeSitter::Tree) = Hash({URI, Int32}, TreeSitter::Tree).new
-  @forest_mutex : RWLock = RWLock.new
+  @forest_mutex = Mutex.new
 
   def provide_semantic_tokens(
     document : Larimar::TextDocument,
@@ -220,7 +220,7 @@ class Larimar::TreeSitterProvider < Larimar::Provider
   end
 
   private def get_cached_tree(document : Larimar::TextDocument) : TreeSitter::Tree
-    @forest_mutex.write do
+    @forest_mutex.synchronize do
       if @forest.has_key?({document.uri, document.version})
         @forest[{document.uri, document.version}]
       else

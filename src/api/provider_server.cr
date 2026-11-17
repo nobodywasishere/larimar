@@ -2,7 +2,7 @@ require "log"
 require "json"
 require "uri"
 require "lsprotocol"
-require "rwlock"
+require "sync/rw_lock"
 
 require "../cancellation_token"
 require "../ext/visitor"

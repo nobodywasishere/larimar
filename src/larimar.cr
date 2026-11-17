@@ -4,7 +4,7 @@ require "uri"
 require "lsprotocol"
 require "ameba"
 require "tree_sitter"
-require "rwlock"
+require "sync/rw_lock"
 
 require "./cancellation_token"
 

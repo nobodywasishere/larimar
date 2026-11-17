@@ -9,8 +9,6 @@ dependencies:
     github: nobodywasishere/lsprotocol-crystal
   tree_sitter:
     github: crystal-lang-tools/crystal-tree-sitter
-  rwlock:
-    github: spider-gazelle/readers-writer
 
 targets:
   larimar:
@@ -20,6 +18,6 @@ targets:
   ast_web:
     main: src/cli/ast_web.cr
 
-crystal: ">= 1.13.1"
+crystal: ">= 1.19.0"
 
 license: MIT

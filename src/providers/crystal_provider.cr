@@ -8,7 +8,7 @@ class Larimar::CrystalProvider < Larimar::Provider
   CrystalParser = TreeSitter::Parser.new("crystal")
 
   @forest : Hash({URI, Int32}, TreeSitter::Tree) = Hash({URI, Int32}, TreeSitter::Tree).new
-  @forest_mutex : RWLock = RWLock.new
+  @forest_mutex = Mutex.new
 
   class LocalVarInlayHintRule < Ameba::Rule::Base
     properties do
@@ -41,11 +41,27 @@ class Larimar::CrystalProvider < Larimar::Provider
       end
 
       scope.variables.each do |var|
-        case var.assign_before_reference
+        case assign_before_reference(var)
         when Crystal::Assign, Crystal::MultiAssign
           @inlay_hints << to_inlay_hint(var.node)
         end
       end
+    end
+
+    # Returns the node of the first assignment of *var*, unless it's an op assign
+    # or the variable got referenced before it.
+    #
+    # NOTE: Stands in for `Ameba::AST::Variable#assign_before_reference`,
+    # which didn't make it into Ameba 1.7.0.
+    private def assign_before_reference(var : Ameba::AST::Variable) : Crystal::ASTNode?
+      return unless (assignment = var.assignments.first?)
+      return if assignment.op_assign?
+      return unless (location = assignment.location)
+
+      referenced_before = var.references.any? do |reference|
+        reference.location.try { |ref_location| ref_location < location }
+      end
+      assignment.node unless referenced_before
     end
 
     def to_inlay_hint(node : Crystal::Var) : LSProtocol::InlayHint
@@ -162,7 +178,7 @@ class Larimar::CrystalProvider < Larimar::Provider
   end
 
   private def get_cached_tree(document : Larimar::TextDocument) : TreeSitter::Tree
-    @forest_mutex.write do
+    @forest_mutex.synchronize do
       if @forest.has_key?({document.uri, document.version})
         @forest[{document.uri, document.version}]
       else

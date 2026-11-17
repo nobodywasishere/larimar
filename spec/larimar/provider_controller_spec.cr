@@ -6,6 +6,17 @@ private class RecordingProvider < Larimar::Provider
   getter changed = [] of Larimar::TextDocument
   getter saved = [] of Larimar::TextDocument
 
+  # Closing a document waits for this channel to get closed
+  getter close_gate = Channel(Nil).new
+
+  # Receives a value once closing a document started
+  getter closing = Channel(Nil).new(1)
+
+  def on_close(document : Larimar::TextDocument) : Nil
+    closing.send(nil)
+    close_gate.receive?
+  end
+
   def on_change(document : Larimar::TextDocument) : Nil
     @changed << document
   end
@@ -57,21 +68,26 @@ end
 
 # Handles *message* in another fiber, while the document is being closed,
 # like when it's waiting for the lock of the document taken by `didClose`.
-private def handle_while_closing(controller, message)
-  document = controller.@documents[URI.parse(URI_STRING)]
+private def handle_while_closing(controller, provider, message)
+  closed = Channel(Nil).new
   done = Channel(Nil).new
 
-  document.mutex.synchronize do
-    spawn do
-      controller.on_notification(message)
-      done.send(nil)
-    end
-    # Lets the spawned fiber reach the lock of the document
-    sleep 10.milliseconds
-
+  spawn do
     controller.on_notification(close_notification)
+    closed.send(nil)
   end
+  # The closing holds the lock of the document from now on
+  provider.closing.receive
 
+  spawn do
+    controller.on_notification(message)
+    done.send(nil)
+  end
+  # Lets the spawned fiber reach the lock of the document
+  sleep 10.milliseconds
+
+  provider.close_gate.close
+  closed.receive
   done.receive
 end
 
@@ -93,7 +109,7 @@ describe Larimar::ProviderController do
     controller = new_controller(provider)
 
     controller.on_notification(open_notification)
-    handle_while_closing(controller, change_notification)
+    handle_while_closing(controller, provider, change_notification)
 
     provider.changed.should be_empty
   end
@@ -103,7 +119,7 @@ describe Larimar::ProviderController do
     controller = new_controller(provider)
 
     controller.on_notification(open_notification)
-    handle_while_closing(controller, save_notification)
+    handle_while_closing(controller, provider, save_notification)
 
     provider.saved.should be_empty
   end

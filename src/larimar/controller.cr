@@ -10,7 +10,10 @@ abstract class Larimar::Controller
 
   # Requests
 
-  def on_request(message : LSProtocol::Request) : Nil
+  # Handles the request *message*, returning the response to it, if any.
+  #
+  # The *cancel_token* gets cancelled once the client cancels the request.
+  def on_request(message : LSProtocol::Request, cancel_token : CancellationToken) : Nil
     Log.error { "Unhandled request message #{message.class.to_s.split("::").last}" }
   end
 

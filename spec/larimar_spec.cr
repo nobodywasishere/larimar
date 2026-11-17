@@ -15,7 +15,7 @@ class DummyController < Larimar::Controller
   def when_ready
   end
 
-  def on_request(message)
+  def on_request(message, cancel_token)
   end
 
   def on_notification(message)
