@@ -10,3 +10,6 @@ controller.register_provider(Larimar::CrystalProvider.new)
 controller.register_provider(Larimar::TreeSitterProvider.new)
 
 server.start(controller)
+
+# The input got closed without an exit notification
+exit(1)
