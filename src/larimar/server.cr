@@ -7,6 +7,10 @@ class Larimar::Server
   getter output : IO
   @output_lock = Mutex.new(:reentrant)
 
+  # How long after the shutdown request to exit, in case the client
+  # doesn't send the exit notification; `nil` disables it
+  property shutdown_exit_delay : Time::Span? = 3.seconds
+
   def initialize(@input : IO, @output : IO)
   end
 
@@ -199,6 +203,7 @@ class Larimar::Server
   # not waiting for anything sent before it.
   private def urgent?(message : LSProtocol::Message) : Bool
     message.is_a?(LSProtocol::CancelNotification |
+                  LSProtocol::ShutdownRequest |
                   LSProtocol::ExitNotification |
                   LSProtocol::Response)
   end
@@ -248,10 +253,12 @@ class Larimar::Server
         when LSProtocol::ShutdownRequest
           # Sometimes the upstream may not send the exit notification,
           # leading to a zombie process being leftover even if the client is closed.
-          # Shutdown after 3 seconds regardless
-          spawn do
-            sleep(3.seconds)
-            exit
+          # Shutdown after a while regardless
+          if (delay = shutdown_exit_delay)
+            spawn do
+              sleep(delay)
+              exit
+            end
           end
           # Not using ShutdownResponse as it doesn't include the result
           nil

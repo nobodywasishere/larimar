@@ -144,7 +144,10 @@ private def definition_request(id)
 end
 
 private def new_server
-  Larimar::Server.new(IO::Memory.new, IO::Memory.new)
+  Larimar::Server.new(IO::Memory.new, IO::Memory.new).tap do |server|
+    # Exiting would end the spec run
+    server.shutdown_exit_delay = nil
+  end
 end
 
 private def wait_until(timeout = 1.second, &)
@@ -385,6 +388,24 @@ describe Larimar::Server do
       wait_until { server.output.to_s.includes?(%("id":1)) }
       server.output.to_s.should_not contain(%("code":-32800))
       server.output.to_s.should contain(%("result":null))
+    end
+
+    it "answers shutdown while an edit is blocked" do
+      controller = RecordingController.new(gated: true)
+      server = new_server
+
+      server.dispatch(controller, change_notification(2))
+      server.dispatch(controller, message({
+        jsonrpc: "2.0",
+        id:      99,
+        method:  "shutdown",
+      }))
+
+      wait_until(100.milliseconds) do
+        server.output.to_s.includes?(%("id":99))
+      end
+    ensure
+      controller.try(&.change_gate.close)
     end
   end
 end
