@@ -76,4 +76,21 @@ describe Larimar::Parser::Document do
       general kenobi!
       EDIT
   end
+
+  it "keeps characters outside the BMP intact" do
+    doc = Larimar::Parser::Document.new("a😀b")
+
+    doc.size.should eq(3)
+    doc.to_s.should eq("a😀b")
+
+    # "😀" takes 2 UTF-16 code units
+    range = LSProtocol::Range.new(
+      start: LSProtocol::Position.new(line: 0, character: 3),
+      end: LSProtocol::Position.new(line: 0, character: 4)
+    )
+    doc.update_partial(range, "🙂")
+
+    doc.to_s.should eq("a😀🙂")
+    doc.index_to_position(3).character.should eq(5)
+  end
 end

@@ -15,8 +15,7 @@ class Larimar::Parser
     property parse_errors : Array(ParserError) = Array(ParserError).new
 
     def initialize(document : String, version : Int32 = 0)
-      # lsp uses utf-16 by default
-      @chars = document.to_utf16.map(&.unsafe_chr).to_a
+      @chars = document.chars
       @pos = 0
       @version = version
     end
@@ -53,7 +52,7 @@ class Larimar::Parser
     end
 
     def update_whole(text : String, version : Int32 = 0)
-      @chars = text.to_utf16.map(&.unsafe_chr).to_a
+      @chars = text.chars
       @pos = 0
       @version = version
     end
@@ -85,6 +84,14 @@ class Larimar::Parser
       @chars.count('\n')
     end
 
+    # Returns the number of UTF-16 code units *char* takes, as LSP
+    # positions count them by default.
+    private def code_units(char : Char) : Int32
+      char.ord >= 0x10000 ? 2 : 1
+    end
+
+    # Returns the index of the character at *position*, whose character
+    # offset is expressed in UTF-16 code units.
     def position_to_index(position : LSProtocol::Position) : Int32
       line = 0
       colm = 0
@@ -100,7 +107,7 @@ class Larimar::Parser
           line += 1
           colm = 0
         else
-          colm += 1
+          colm += code_units(char)
         end
 
         posi += 1
@@ -113,6 +120,8 @@ class Larimar::Parser
       raise IndexError.new("#{position.line},#{position.character} not in document")
     end
 
+    # Returns the position of the character at *index*, with its character
+    # offset expressed in UTF-16 code units.
     def index_to_position(index : Int32) : LSProtocol::Position
       line = 0
       colm = 0
@@ -131,7 +140,7 @@ class Larimar::Parser
           line += 1
           colm = 0
         else
-          colm += 1
+          colm += code_units(char)
         end
 
         posi += 1
