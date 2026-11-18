@@ -147,4 +147,17 @@ describe Larimar::Server do
       error.error.try(&.code).should eq(LSProtocol::ErrorCodes::MethodNotFound.value)
     end
   end
+
+  describe "#handshake" do
+    it "answers any request before the initialize one as not initialized" do
+      input = IO::Memory.new(frame(%({"jsonrpc":"2.0","id":5,"method":"foo/bar","params":{}})))
+      output = IO::Memory.new
+
+      Larimar::Server.new(input, output).handshake(IdleController.new).should be_false
+
+      error = LSProtocol::ResponseErrorMessage.from_json(output.to_s.partition("\r\n\r\n")[2])
+      error.id.should eq(5)
+      error.error.try(&.code).should eq(LSProtocol::ErrorCodes::ServerNotInitialized.value)
+    end
+  end
 end

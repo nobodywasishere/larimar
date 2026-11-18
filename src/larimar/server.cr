@@ -73,7 +73,8 @@ class Larimar::Server
     rescue IO::Error
       return false
     rescue e : MessageError
-      answer_with_error(e)
+      # Every request before the initialize one gets the same error
+      answer_with_error(e, code: :server_not_initialized)
     rescue e
       Log.error(exception: e) { e }
     end
@@ -195,8 +196,9 @@ class Larimar::Server
     end
   end
 
-  # Answers the request *error* is about with it, if it's about one.
-  private def answer_with_error(error : MessageError) : Nil
+  # Answers the request *error* is about with it, if it's about one,
+  # with the given error *code*.
+  private def answer_with_error(error : MessageError, code : LSProtocol::ErrorCodes = error.code) : Nil
     Log.warn { error.message }
 
     return unless (id = error.id)
@@ -204,8 +206,8 @@ class Larimar::Server
     send_msg(LSProtocol::ResponseErrorMessage.new(
       id: id,
       error: LSProtocol::ResponseError.new(
-        code: error.code.value,
-        message: error.message || error.code.to_s
+        code: code.value,
+        message: error.message || code.to_s
       )
     ))
   end
