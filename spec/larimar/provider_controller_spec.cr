@@ -188,7 +188,8 @@ describe Larimar::ProviderController do
       reported = controller.server.output.to_s.split(/Content-Length: \d+\r\n\r\n/, remove_empty: true).map do |json|
         progress = LSProtocol::ProgressNotification.from_json(json)
         progress.params.token.should eq("p")
-        progress.params.value.not_nil!["data"].as_a.map(&.as_i.to_u32)
+        value = progress.params.value.should_not be_nil
+        value["data"].as_a.map(&.as_i.to_u32)
       end
       reported.flatten.should eq(all_data)
       reported.size.should eq(3)
