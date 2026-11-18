@@ -407,7 +407,8 @@ class Larimar::Server
     end
 
     @output_lock.synchronize do
-      @output << "Content-Length: #{json.bytesize}\r\n\r\n#{json}"
+      # Written apart from its headers, not to copy it into a new string
+      @output << "Content-Length: " << json.bytesize << "\r\n\r\n" << json
       @output.flush
     end
   end
