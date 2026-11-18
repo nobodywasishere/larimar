@@ -150,6 +150,19 @@ describe Larimar::Server do
         .should be_a(LSProtocol::ConfigurationResponse)
     end
 
+    it "rejects a response with both a result and an error, keeping the method of its request" do
+      server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
+      server.send_msg(LSProtocol.parse_message(
+        %({"jsonrpc":"2.0","id":7,"method":"workspace/configuration","params":{"items":[]}})
+      ))
+
+      expect_raises(Exception, /not both/) do
+        server.parse_msg(%({"jsonrpc":"2.0","id":7,"result":[],"error":{"code":-32603,"message":"oops"}}))
+      end
+      server.parse_msg(%({"jsonrpc":"2.0","id":7,"result":[{"foo":1}]}))
+        .should be_a(LSProtocol::ConfigurationResponse)
+    end
+
     it "forgets the methods of the oldest requests not answered" do
       server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
 
@@ -195,6 +208,8 @@ describe Larimar::Server do
       {"a non-object", %([]), LSProtocol::ErrorCodes::InvalidRequest},
       {"no JSON-RPC version", %({"id":3,"method":"shutdown"}), LSProtocol::ErrorCodes::InvalidRequest},
       {"an invalid id", %({"jsonrpc":"2.0","id":1.5,"method":"shutdown"}), LSProtocol::ErrorCodes::InvalidRequest},
+      {"an out-of-range id", %({"jsonrpc":"2.0","id":2147483648,"method":"shutdown"}), LSProtocol::ErrorCodes::InvalidRequest},
+      {"a null id and a method", %({"jsonrpc":"2.0","id":null,"method":"textDocument/didClose","params":{"textDocument":{"uri":"file:///a.cr"}}}), LSProtocol::ErrorCodes::InvalidRequest},
       {"neither a method, a result nor an error", %({"jsonrpc":"2.0","id":17}), LSProtocol::ErrorCodes::InvalidRequest},
     }.each do |name, json, code|
       it "raises for a message with #{name}, without an id" do
@@ -258,6 +273,8 @@ describe Larimar::Server do
     {
       {"invalid JSON", %({), LSProtocol::ErrorCodes::ParseError},
       {"no method, result nor error", %({"jsonrpc":"2.0","id":17}), LSProtocol::ErrorCodes::InvalidRequest},
+      {"a null id", %({"jsonrpc":"2.0","id":null,"method":"textDocument/didClose","params":{"textDocument":{"uri":"file:///a.cr"}}}), LSProtocol::ErrorCodes::InvalidRequest},
+      {"an out-of-range id", %({"jsonrpc":"2.0","id":2147483648,"method":"shutdown"}), LSProtocol::ErrorCodes::InvalidRequest},
     }.each do |name, json, code|
       it "answers a message with #{name} with an error with a null id, not handling it" do
         output = IO::Memory.new

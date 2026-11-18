@@ -530,9 +530,14 @@ class Larimar::Server
     end
 
     id : Int32 | String? = nil
-    if (value = json["id"]?) && !value.raw.nil?
-      id = value.as_i? || value.as_s? ||
-           raise MessageError.new(nil, :invalid_request, "Expecting a string or integer id, not #{value.to_json}")
+    if (value = json["id"]?)
+      id = value.as_s? || value.as_i64?.try { |int| int.to_i32 if Int32::MIN <= int <= Int32::MAX }
+
+      # Only a response may have a `null` id, answering a request which
+      # couldn't be told apart, as per JSON-RPC
+      unless id || (value.raw.nil? && !json.has_key?("method"))
+        raise MessageError.new(nil, :invalid_request, "Expecting a string or 32-bit integer id, not #{value.to_json}")
+      end
     end
 
     if (method = json["method"]?)
@@ -566,6 +571,12 @@ class Larimar::Server
 
     # Never answered, as it's a response
     raise "Expecting the id of the request answered by #{content}" unless id
+
+    # Rejected before forgetting the method of the request, so that
+    # a valid response following it still gets parsed as its one
+    if json.has_key?("result") && json.has_key?("error")
+      raise "Expecting either a result or an error, not both, in #{content}"
+    end
 
     request_method = @outgoing_methods_mutex.synchronize { @outgoing_methods[id]? }
 
