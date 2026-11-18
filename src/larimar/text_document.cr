@@ -142,6 +142,26 @@ class Larimar::TextDocument
     units
   end
 
+  # Returns the position of the byte *column* within the line *row*, like the
+  # points of tree-sitter, with its character offset expressed in the code
+  # units of `#position_encoding`.
+  #
+  # A column within a character resolves to the start of that character,
+  # and one past the end of the document to its end.
+  def position(row : Int, byte_column : Int) : LSProtocol::Position
+    character =
+      if (line_start = @line_starts[row]?)
+        character(line_start, Math.min(line_start + byte_column.to_i, @text.bytesize))
+      else
+        byte_column
+      end
+
+    LSProtocol::Position.new(
+      line: row.to_u32,
+      character: character.to_u32
+    )
+  end
+
   # Returns the byte offsets of the starts of the lines of *text*.
   def self.line_starts(text : String) : Array(Int32)
     line_starts = [0]

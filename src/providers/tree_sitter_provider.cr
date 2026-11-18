@@ -132,7 +132,6 @@ class Larimar::TreeSitterProvider < Larimar::Provider
     token : CancellationToken?,
   ) : Array(LSProtocol::FoldingRange)?
     tree = get_cached_tree(document)
-    line_index = LineIndex.new(document.to_s, document.position_encoding)
 
     query = TreeSitter::Query.new(
       CrystalParser.language,
@@ -149,8 +148,8 @@ class Larimar::TreeSitterProvider < Larimar::Provider
 
       next unless capture.rule.starts_with?("fold")
 
-      start_position = line_index.position(capture.node.start_point)
-      end_position = line_index.position(capture.node.end_point)
+      start_position = position(document, capture.node.start_point)
+      end_position = position(document, capture.node.end_point)
 
       folds << LSProtocol::FoldingRange.new(
         start_line: start_position.line,
@@ -170,7 +169,6 @@ class Larimar::TreeSitterProvider < Larimar::Provider
   ) : Array(LSProtocol::DocumentSymbol)?
     source = document.to_s
     tree = get_cached_tree(document)
-    line_index = LineIndex.new(source, document.position_encoding)
 
     query = TreeSitter::Query.new(
       CrystalParser.language,
@@ -197,7 +195,7 @@ class Larimar::TreeSitterProvider < Larimar::Provider
         curr_details << capture.text(source).strip
       when "name"
         curr_names << capture.text(source).strip
-        curr_selection_range = ts_node_to_range(capture.node, line_index)
+        curr_selection_range = ts_node_to_range(capture.node, document)
       else
         handle_new_symbol()
 
@@ -210,7 +208,7 @@ class Larimar::TreeSitterProvider < Larimar::Provider
         # create new item
         curr_kind = capture.rule.lchop?("item.").try { |i| LSProtocol::SymbolKind.parse?(i) } ||
                     LSProtocol::SymbolKind::Variable
-        curr_range = ts_node_to_range(capture.node, line_index)
+        curr_range = ts_node_to_range(capture.node, document)
       end
     end
 
@@ -229,11 +227,16 @@ class Larimar::TreeSitterProvider < Larimar::Provider
     end
   end
 
-  private def ts_node_to_range(node : TreeSitter::Node, line_index : LineIndex) : LSProtocol::Range
+  private def ts_node_to_range(node : TreeSitter::Node, document : Larimar::TextDocument) : LSProtocol::Range
     LSProtocol::Range.new(
-      start: line_index.position(node.start_point),
-      end: line_index.position(node.end_point)
+      start: position(document, node.start_point),
+      end: position(document, node.end_point)
     )
+  end
+
+  # Converts the tree-sitter *point*, whose column is a byte offset, into a position of *document*.
+  private def position(document : Larimar::TextDocument, point : TreeSitter::Point) : LSProtocol::Position
+    document.position(point.row, point.column)
   end
 
   # Helper method to check if one range contains another

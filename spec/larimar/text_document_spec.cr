@@ -151,4 +151,37 @@ describe Larimar::TextDocument do
       document.position_to_offset(position(2, 0)).should eq(6)
     end
   end
+
+  describe "#position" do
+    # "é" takes 2 UTF-8 code units, "😀" takes 4 UTF-8 and 2 UTF-16 code units
+    source = "x\naé😀b"
+
+    it "keeps byte columns for UTF-8" do
+      document(:utf8, source).position(1, 7).character.should eq(7)
+    end
+
+    it "converts byte columns for UTF-16" do
+      document = document(:utf16, source)
+
+      {0 => 0, 1 => 1, 3 => 2, 7 => 4, 8 => 5}.each do |byte_column, character|
+        to_tuple(document.position(1, byte_column)).should eq({1, character})
+      end
+    end
+
+    it "converts byte columns for UTF-32" do
+      document(:utf32, source).position(1, 7).character.should eq(3)
+    end
+
+    it "only counts the characters of the given line" do
+      document(:utf16, "😀\n😀").position(1, 4).character.should eq(2)
+    end
+
+    it "resolves a column past the end of the document to its end" do
+      document(:utf16, source).position(1, 99).character.should eq(5)
+    end
+
+    it "keeps the column of a line past the end of the document" do
+      to_tuple(document(:utf16, source).position(5, 3)).should eq({5, 3})
+    end
+  end
 end
