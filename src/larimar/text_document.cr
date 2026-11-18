@@ -6,6 +6,11 @@ class Larimar::TextDocument
   # Byte offsets of the starts of the lines of `@text`
   @line_starts : Array(Int32)
 
+  # Whether `@text` is all ASCII, its bytes being then its characters, each
+  # taking a single code unit in any encoding. Once `false`, it's only
+  # computed again when the whole text gets replaced.
+  @ascii_only : Bool
+
   getter uri : URI
   getter version : Int32
   getter mutex : Sync::RWLock = Sync::RWLock.new
@@ -21,6 +26,7 @@ class Larimar::TextDocument
   )
     @text = document
     @line_starts = self.class.line_starts(document)
+    @ascii_only = document.ascii_only?
   end
 
   def update_partial(range : LSProtocol::Range, text : String, version : Int32 = 0) : Nil
@@ -60,6 +66,7 @@ class Larimar::TextDocument
       end
     end
 
+    @ascii_only &&= text.ascii_only?
     @version = version
     @ameba_source = nil
   end
@@ -67,6 +74,7 @@ class Larimar::TextDocument
   def update_whole(text : String, version : Int32 = 0) : Nil
     @text = text
     @line_starts = self.class.line_starts(text)
+    @ascii_only = text.ascii_only?
     @version = version
     @ameba_source = nil
   end
@@ -89,6 +97,8 @@ class Larimar::TextDocument
       raise IndexError.new("#{position.line},#{position.character} not in document")
     end
 
+    return ascii_position_to_offset(position.line, line_start, position.character) if @ascii_only
+
     reader = Char::Reader.new(@text, line_start)
     units = 0
 
@@ -98,6 +108,20 @@ class Larimar::TextDocument
     end
 
     reader.pos
+  end
+
+  # Returns the byte offset of the *character* within the *line* starting
+  # at the byte offset *line_start*, for an all-ASCII text, like
+  # `#position_to_offset` does, without decoding it.
+  private def ascii_position_to_offset(line : UInt32, line_start : Int32, character : UInt32) : Int32
+    bytes = @text.to_slice
+
+    # The end of the line, before its line feed
+    line_end = @line_starts[line + 1]?.try(&.- 1) || bytes.size
+    offset = line_start + Math.min(character, (line_end - line_start).to_u32).to_i
+
+    # Like for any text, the line ends at its carriage return
+    bytes[line_start, offset - line_start].index('\r'.ord.to_u8).try { |index| line_start + index } || offset
   end
 
   # Returns the position of the character at the byte *offset*, with its
@@ -122,6 +146,8 @@ class Larimar::TextDocument
   # the byte offsets *line_start* and *offset*, the latter moved back
   # to the start of the character it's within, if any.
   private def character(line_start : Int32, offset : Int32) : Int32
+    return offset - line_start if @ascii_only
+
     bytes = @text.to_slice
 
     # The bytes continuing a UTF-8 sequence are all 0b10xxxxxx

@@ -184,4 +184,35 @@ describe Larimar::TextDocument do
       to_tuple(document(:utf16, source).position(5, 3)).should eq({5, 3})
     end
   end
+
+  describe "ASCII text" do
+    it "resolves the offsets past the end of a line, or at a carriage return, like any text" do
+      document = document(:utf16, "ab\r\nc\rd\nef")
+
+      document.position_to_offset(position(0, 1)).should eq(1)
+      document.position_to_offset(position(0, 99)).should eq(2)
+      document.position_to_offset(position(1, 1)).should eq(5)
+      document.position_to_offset(position(1, 99)).should eq(5)
+      document.position_to_offset(position(2, 2)).should eq(10)
+      document.position_to_offset(position(2, 99)).should eq(10)
+
+      to_tuple(document.offset_to_position(9)).should eq({2, 1})
+      to_tuple(document.position(1, 2)).should eq({1, 2})
+    end
+
+    it "counts the code units again once a non-ASCII character gets inserted" do
+      document = document(:utf16, "ab\ncd")
+
+      document.update_partial(range(0, 1, 0, 1), "😀")
+      document.to_s.should eq("a😀b\ncd")
+
+      document.position_to_offset(position(0, 3)).should eq(5)
+      to_tuple(document.offset_to_position(5)).should eq({0, 3})
+      to_tuple(document.position(0, 5)).should eq({0, 3})
+
+      document.update_whole("xy\nz")
+      document.position_to_offset(position(0, 2)).should eq(2)
+      to_tuple(document.position(1, 1)).should eq({1, 1})
+    end
+  end
 end
