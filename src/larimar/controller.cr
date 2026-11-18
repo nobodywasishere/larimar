@@ -22,8 +22,16 @@ abstract class Larimar::Controller
 
   # Notifications
 
+  # Handles the notification *message*.
+  #
+  # The unhandled ones are only logged, as debug ones if they may be
+  # ignored (see `Larimar.ignorable_notification?`), as warnings otherwise.
   def on_notification(message : LSProtocol::Notification) : Nil
-    Log.error { "Unhandled notification message #{message.class.to_s.split("::").last}" }
+    if Larimar.ignorable_notification?(message.method)
+      Log.debug { "Unhandled notification message #{message.class.to_s.split("::").last}" }
+    else
+      Log.warn { "Unhandled notification message #{message.class.to_s.split("::").last}" }
+    end
   end
 
   # Responses

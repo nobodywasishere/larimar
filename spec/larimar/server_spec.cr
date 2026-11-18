@@ -165,6 +165,21 @@ describe Larimar::Server do
     end
   end
 
+  describe "unhandled notifications" do
+    it "get logged as debug ones if they may be ignored, as warnings otherwise" do
+      set_trace = LSProtocol.parse_message(%({"jsonrpc":"2.0","method":"$/setTrace","params":{"value":"off"}}))
+      saved = LSProtocol.parse_message(%({"jsonrpc":"2.0","method":"textDocument/didSave","params":{"textDocument":{"uri":"file:///a.cr"}}}))
+
+      Log.capture(level: :debug) do |logs|
+        IdleController.new.on_notification(set_trace.as(LSProtocol::Notification))
+        IdleController.new.on_notification(saved.as(LSProtocol::Notification))
+
+        logs.next(:debug, "Unhandled notification message SetTraceNotification")
+        logs.next(:warn, "Unhandled notification message DidSaveTextDocumentNotification")
+      end
+    end
+  end
+
   describe "#handshake" do
     it "answers any request before the initialize one as not initialized" do
       input = IO::Memory.new(frame(%({"jsonrpc":"2.0","id":5,"method":"foo/bar","params":{}})))

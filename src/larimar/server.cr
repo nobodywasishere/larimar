@@ -1,6 +1,12 @@
 module Larimar
   # A message from the client answering a request sent to it
   alias ClientResponse = LSProtocol::Response | LSProtocol::ResponseMessage | LSProtocol::ResponseErrorMessage
+
+  # Returns `true` if a notification with the given *method* may be ignored,
+  # i.e. if it starts with `$/`, as per the LSP specification.
+  def self.ignorable_notification?(method : String) : Bool
+    method.starts_with?("$/")
+  end
 end
 
 class Larimar::Server
@@ -21,10 +27,11 @@ class Larimar::Server
       super(message)
     end
 
-    # Returns `true` if it's about a notification which may be ignored,
-    # i.e. one whose method starts with `$/`, as per the LSP specification.
+    # Returns `true` if it's about a notification which may be ignored.
+    #
+    # See `Larimar.ignorable_notification?`.
     def ignorable? : Bool
-      id.nil? && !!method.try(&.starts_with?("$/"))
+      id.nil? && !!method.try { |method| Larimar.ignorable_notification?(method) }
     end
   end
 
