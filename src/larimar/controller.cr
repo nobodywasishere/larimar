@@ -28,7 +28,8 @@ abstract class Larimar::Controller
 
   # Responses
 
-  def on_response(message : LSProtocol::Response) : Nil
+  # Handles the *message* answering a request sent to the client.
+  def on_response(message : LSProtocol::Response | LSProtocol::ResponseMessage | LSProtocol::ResponseErrorMessage) : Nil
     Log.error { "Unhandled response message #{message.class.to_s.split("::").last}" }
   end
 end

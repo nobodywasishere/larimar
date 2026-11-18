@@ -210,9 +210,15 @@ class Larimar::Server
   # Returns `true` if *message* needs to be handled right away,
   # not waiting for anything sent before it.
   private def urgent?(message : LSProtocol::Message) : Bool
-    message.is_a?(LSProtocol::ShutdownRequest |
-                  LSProtocol::ExitNotification |
-                  LSProtocol::Response)
+    message.is_a?(LSProtocol::ShutdownRequest | LSProtocol::ExitNotification) ||
+      response?(message)
+  end
+
+  # Returns `true` if *message* answers a request sent to the client.
+  private def response?(message : LSProtocol::Message) : Bool
+    message.is_a?(LSProtocol::Response |
+                  LSProtocol::ResponseMessage |
+                  LSProtocol::ResponseErrorMessage)
   end
 
   # Cancellation sources of the requests not answered yet, by their ids
@@ -308,7 +314,7 @@ class Larimar::Server
       controller.when_ready
     when LSProtocol::Notification
       controller.on_notification(message)
-    when LSProtocol::Response
+    when LSProtocol::Response, LSProtocol::ResponseMessage, LSProtocol::ResponseErrorMessage
       controller.on_response(message)
     end
   rescue e
@@ -317,10 +323,21 @@ class Larimar::Server
 
   # Transmit methods
 
+  # Methods of the requests sent to the client not answered yet, by their ids,
+  # as the responses don't include them, but parsing them needs them
+  @outgoing_methods = Hash(Int32 | String, String).new
+  @outgoing_methods_mutex = Mutex.new
+
   def send_msg(message : LSProtocol::Message, log : Bool = true) : Nil
     if log
       Log.info &.emit("Sending message #{message.class}")
       Log.debug &.emit(message.to_json)
+    end
+
+    if message.is_a?(LSProtocol::Request)
+      @outgoing_methods_mutex.synchronize do
+        @outgoing_methods[message.id] = message.method
+      end
     end
 
     json = message.to_json
@@ -366,11 +383,37 @@ class Larimar::Server
 
     content = String.new(content_bytes)
 
-    message = LSProtocol.parse_message(content)
+    message = parse_msg(content)
 
     Log.info &.emit("Received message #{message.class}")
     Log.debug &.emit(message.to_json)
 
     message
+  end
+
+  # Parses the JSON-RPC message *content*.
+  #
+  # Unlike `LSProtocol.parse_message`, it handles the responses to the
+  # requests sent to the client, which come without a method: their
+  # results get parsed as the ones of the methods of these requests,
+  # if known, or as a `LSProtocol::ResponseMessage` otherwise.
+  def parse_msg(content : String) : LSProtocol::Message
+    json = JSON.parse(content).as_h? || raise LSProtocol::ParseError.new("Expecting a JSON object")
+
+    if (method = json["method"]?)
+      # Like `LSProtocol.parse_message` does, without parsing the JSON again
+      return LSProtocol::METHOD_TO_TYPES[method.as_s][0].from_json(content).as(LSProtocol::Message)
+    end
+
+    id = json["id"]?.try { |value| value.as_i? || value.as_s? }
+    request_method = id.try { |key| @outgoing_methods_mutex.synchronize { @outgoing_methods.delete(key) } }
+
+    if json["error"]?.try(&.as_h?)
+      LSProtocol::ResponseErrorMessage.from_json(content)
+    elsif request_method && (types = LSProtocol::METHOD_TO_TYPES[request_method]?)
+      types[1].from_json(content).as(LSProtocol::Message)
+    else
+      LSProtocol::ResponseMessage.from_json(content)
+    end
   end
 end

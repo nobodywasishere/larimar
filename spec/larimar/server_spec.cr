@@ -46,4 +46,36 @@ describe Larimar::Server do
       end
     end
   end
+
+  describe "#parse_msg" do
+    it "parses a response to a request sent to the client as the one of its method" do
+      server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
+      server.send_msg(LSProtocol.parse_message(
+        %({"jsonrpc":"2.0","id":7,"method":"workspace/configuration","params":{"items":[]}})
+      ))
+
+      response = server.parse_msg(%({"jsonrpc":"2.0","id":7,"result":[{"foo":1}]}))
+      response.should be_a(LSProtocol::ConfigurationResponse)
+
+      # The method gets forgotten once answered
+      server.parse_msg(%({"jsonrpc":"2.0","id":7,"result":[{"foo":1}]}))
+        .should be_a(LSProtocol::ResponseMessage)
+    end
+
+    it "parses a response to an unknown request" do
+      server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
+
+      server.parse_msg(%({"jsonrpc":"2.0","id":1,"result":null}))
+        .should be_a(LSProtocol::ResponseMessage)
+      server.parse_msg(%({"jsonrpc":"2.0","id":"a","result":{"foo":1}}))
+        .should be_a(LSProtocol::ResponseMessage)
+    end
+
+    it "parses an error response" do
+      server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
+
+      server.parse_msg(%({"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"oops"}}))
+        .should be_a(LSProtocol::ResponseErrorMessage)
+    end
+  end
 end
