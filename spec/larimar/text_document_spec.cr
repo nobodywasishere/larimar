@@ -80,6 +80,16 @@ describe Larimar::TextDocument do
       end
     {% end %}
 
+    {% for encoding, characters in {utf8: {1, 3}, utf16: {1, 2}, utf32: {1, 2}} %}
+      it "resolves an offset within a character to its start in {{ encoding.id }} code units" do
+        document = document(:{{ encoding.id }})
+
+        # Within "é", then within "😀"
+        to_tuple(document.offset_to_position(2)).should eq({0, {{ characters[0] }}})
+        to_tuple(document.offset_to_position(5)).should eq({0, {{ characters[1] }}})
+      end
+    {% end %}
+
     it "raises for an offset past the end of the document" do
       expect_raises(IndexError) do
         document(:utf16).offset_to_position(TEXT.bytesize + 1)

@@ -102,6 +102,8 @@ class Larimar::TextDocument
 
   # Returns the position of the character at the byte *offset*, with its
   # character offset expressed in the code units of `#position_encoding`.
+  #
+  # An offset within a character resolves to the start of that character.
   def offset_to_position(offset : Int32) : LSProtocol::Position
     unless 0 <= offset <= @text.bytesize
       raise IndexError.new("#{offset} not in document")
@@ -109,22 +111,35 @@ class Larimar::TextDocument
 
     # The last line starting at or before the offset
     line = (@line_starts.bsearch_index { |line_start| line_start > offset } || @line_starts.size) - 1
-    line_start = @line_starts[line]
-
-    character =
-      if position_encoding.utf8?
-        offset - line_start
-      else
-        @text
-          .byte_slice(line_start, offset - line_start)
-          .each_char
-          .sum { |char| self.class.code_units(char, position_encoding) }
-      end
 
     LSProtocol::Position.new(
       line: line.to_u32,
-      character: character.to_u32
+      character: character(@line_starts[line], offset).to_u32
     )
+  end
+
+  # Returns the number of code units of `#position_encoding` between
+  # the byte offsets *line_start* and *offset*, the latter moved back
+  # to the start of the character it's within, if any.
+  private def character(line_start : Int32, offset : Int32) : Int32
+    bytes = @text.to_slice
+
+    # The bytes continuing a UTF-8 sequence are all 0b10xxxxxx
+    while line_start < offset < bytes.size && bytes[offset] & 0xC0 == 0x80
+      offset -= 1
+    end
+
+    return offset - line_start if position_encoding.utf8?
+
+    reader = Char::Reader.new(@text, line_start)
+    units = 0
+
+    while reader.pos < offset
+      units += self.class.code_units(reader.current_char, position_encoding)
+      reader.next_char
+    end
+
+    units
   end
 
   # Returns the byte offsets of the starts of the lines of *text*.
