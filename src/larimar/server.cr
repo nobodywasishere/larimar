@@ -1,3 +1,8 @@
+module Larimar
+  # A message from the client answering a request sent to it
+  alias ClientResponse = LSProtocol::Response | LSProtocol::ResponseMessage | LSProtocol::ResponseErrorMessage
+end
+
 class Larimar::Server
   Log = ::Larimar::Log.for(self)
 
@@ -241,15 +246,7 @@ class Larimar::Server
   # Returns `true` if *message* needs to be handled right away,
   # not waiting for anything sent before it.
   private def urgent?(message : LSProtocol::Message) : Bool
-    message.is_a?(LSProtocol::ShutdownRequest | LSProtocol::ExitNotification) ||
-      response?(message)
-  end
-
-  # Returns `true` if *message* answers a request sent to the client.
-  private def response?(message : LSProtocol::Message) : Bool
-    message.is_a?(LSProtocol::Response |
-                  LSProtocol::ResponseMessage |
-                  LSProtocol::ResponseErrorMessage)
+    message.is_a?(LSProtocol::ShutdownRequest | LSProtocol::ExitNotification | ClientResponse)
   end
 
   # Cancellation sources of the requests not answered yet, by their ids
@@ -345,7 +342,7 @@ class Larimar::Server
       controller.when_ready
     when LSProtocol::Notification
       controller.on_notification(message)
-    when LSProtocol::Response, LSProtocol::ResponseMessage, LSProtocol::ResponseErrorMessage
+    when ClientResponse
       controller.on_response(message)
     end
   rescue e
