@@ -282,33 +282,49 @@ class Larimar::ProviderController < Larimar::Controller
   def on_request(message : LSProtocol::SemanticTokensRangeRequest, cancel_token : CancellationToken)
     params = message.params
 
+    partial_result_token = params.partial_result_token
+
     reading_document(params.text_document.uri) do |document|
-      tokens = first(SemanticTokensRangeProvider) do |provider|
-        provider.provide_semantic_tokens_range(document, params.range, cancel_token) do |partial_tokens|
-          if (partial_result_token = params.partial_result_token)
-            server.send_msg(
-              LSProtocol::ProgressNotification.new(
-                params: LSProtocol::ProgressParams.new(
-                  token: partial_result_token,
-                  value: JSON.parse(
-                    LSProtocol::SemanticTokens.new(
-                      data: partial_tokens.flat_map(&.to_a)
-                    ).to_json
-                  )
-                )
-              )
-            )
-          end
+      # The tokens not reported as partial results
+      data = [] of UInt32
+
+      remaining_tokens = first(SemanticTokensRangeProvider) do |provider|
+        provider.provide_semantic_tokens_range(document, params.range, cancel_token) do |tokens|
+          report_semantic_tokens(tokens, partial_result_token, data)
         end
       end
 
+      # The tokens returned follow the ones yielded
+      remaining_tokens.try { |tokens| report_semantic_tokens(tokens, partial_result_token, data) }
+
+      # Once reported as partial results, the final result is empty, as per LSP
       LSProtocol::SemanticTokensRangeResponse.new(
         id: message.id,
-        result: LSProtocol::SemanticTokens.new(
-          data: tokens.try(&.flat_map(&.to_a)) || [] of UInt32
-        )
+        result: LSProtocol::SemanticTokens.new(data: data)
       )
     end
+  end
+
+  # Reports the semantic *tokens* as a partial result if the client asked
+  # for them with a *partial_result_token*, appending them to *data* otherwise.
+  private def report_semantic_tokens(tokens : Array(SemanticToken), partial_result_token : LSProtocol::ProgressToken?, data : Array(UInt32)) : Nil
+    unless partial_result_token
+      data.concat(tokens.flat_map(&.to_a))
+      return
+    end
+
+    return if tokens.empty?
+
+    server.send_msg(
+      LSProtocol::ProgressNotification.new(
+        params: LSProtocol::ProgressParams.new(
+          token: partial_result_token,
+          value: JSON.parse(
+            LSProtocol::SemanticTokens.new(data: tokens.flat_map(&.to_a)).to_json
+          )
+        )
+      )
+    )
   end
 
   # Yields the open document with the given *uri* while holding its read
