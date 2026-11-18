@@ -329,9 +329,11 @@ class Larimar::Server
   @outgoing_methods_mutex = Mutex.new
 
   def send_msg(message : LSProtocol::Message, log : Bool = true) : Nil
+    json = message.to_json
+
     if log
       Log.info &.emit("Sending message #{message.class}")
-      Log.debug &.emit(message.to_json)
+      Log.debug &.emit(json)
     end
 
     if message.is_a?(LSProtocol::Request)
@@ -339,8 +341,6 @@ class Larimar::Server
         @outgoing_methods[message.id] = message.method
       end
     end
-
-    json = message.to_json
 
     @output_lock.synchronize do
       @output << "Content-Length: #{json.bytesize}\r\n\r\n#{json}"
@@ -386,7 +386,7 @@ class Larimar::Server
     message = parse_msg(content)
 
     Log.info &.emit("Received message #{message.class}")
-    Log.debug &.emit(message.to_json)
+    Log.debug &.emit(content)
 
     message
   end
