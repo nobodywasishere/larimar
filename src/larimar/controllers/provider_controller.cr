@@ -220,9 +220,10 @@ class Larimar::ProviderController < Larimar::Controller
       provider.resolve_code_action(message.params, cancel_token)
     end
 
+    # One no provider resolves is left as is
     LSProtocol::CodeActionResolveResponse.new(
       id: message.id,
-      result: code_action || LSProtocol::CodeAction.new("Could not resolve code action.")
+      result: code_action || message.params
     )
   end
 

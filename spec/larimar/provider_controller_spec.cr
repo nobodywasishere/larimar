@@ -123,4 +123,16 @@ describe Larimar::ProviderController do
 
     provider.saved.should be_empty
   end
+
+  describe "codeAction/resolve" do
+    it "leaves a code action no provider resolves as is" do
+      controller = new_controller(RecordingProvider.new)
+      request = LSProtocol.parse_message(
+        %({"jsonrpc":"2.0","id":1,"method":"codeAction/resolve","params":{"title":"Fix it","kind":"quickfix","data":{"foo":1}}})
+      ).as(LSProtocol::CodeActionResolveRequest)
+
+      response = controller.on_request(request, CancellationTokenSource.new.token)
+      JSON.parse(response.to_json)["result"].should eq(JSON.parse(request.params.to_json))
+    end
+  end
 end
