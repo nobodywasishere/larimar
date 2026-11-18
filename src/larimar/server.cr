@@ -80,7 +80,16 @@ class Larimar::Server
 
       case init_msg
       when LSProtocol::InitializeRequest
-        init_result : LSProtocol::InitializeResult = controller.on_init(init_msg.params)
+        begin
+          init_result : LSProtocol::InitializeResult = controller.on_init(init_msg.params)
+        rescue e : MessageError
+          answer_with_error(e)
+          next
+        rescue e
+          Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
+          send_msg(internal_error_response(init_msg.id, e))
+          next
+        end
 
         response = LSProtocol::InitializeResponse.new(
           id: init_msg.id,
@@ -104,8 +113,9 @@ class Larimar::Server
       return false
     rescue e : MessageError
       # Every request before the initialize one gets the same error,
-      # while the initialize one gets its own
-      answer_with_error(e, code: e.method == "initialize" ? e.code : LSProtocol::ErrorCodes::ServerNotInitialized)
+      # while the initialize one, and the messages which can't be told
+      # apart, get their own
+      answer_with_error(e, code: e.method == "initialize" || e.id.nil? ? e.code : LSProtocol::ErrorCodes::ServerNotInitialized)
     rescue e
       Log.error(exception: e) { e }
     end
@@ -236,7 +246,17 @@ class Larimar::Server
       Log.warn { error.message }
     end
 
-    error.response(code).try { |response| send_msg(response) }
+    if (response = error.response(code))
+      send_msg(response)
+    elsif code.parse_error? || code.invalid_request?
+      # The id of a message which can't be told apart is `null`, as per
+      # JSON-RPC, which `LSProtocol::ResponseErrorMessage` doesn't allow
+      send_json({
+        jsonrpc: "2.0",
+        id:      nil,
+        error:   LSProtocol::ResponseError.new(code: code.value, message: error.message || code.to_s),
+      }.to_json)
+    end
   end
 
   # Drops the queues of the documents with no message left to handle,
@@ -312,6 +332,17 @@ class Larimar::Server
     )
   end
 
+  # Returns the response answering the request *id* with the *exception* raised handling it.
+  private def internal_error_response(id : Int32 | String, exception : Exception) : LSProtocol::ResponseErrorMessage
+    LSProtocol::ResponseErrorMessage.new(
+      id: id,
+      error: LSProtocol::ResponseError.new(
+        code: LSProtocol::ErrorCodes::InternalError.value,
+        message: exception.message || exception.class.name
+      )
+    )
+  end
+
   # Cancels the request *id*, if it's still pending.
   private def cancel_request(id : Int32 | String) : Nil
     @cancel_sources_mutex.synchronize { @cancel_sources.delete(id) }
@@ -360,13 +391,7 @@ class Larimar::Server
 
       # Not answered with a `null` result, which the client couldn't tell
       # apart from the request having no result
-      send_msg(LSProtocol::ResponseErrorMessage.new(
-        id: request.id,
-        error: LSProtocol::ResponseError.new(
-          code: LSProtocol::ErrorCodes::InternalError.value,
-          message: e.message || e.class.name
-        )
-      ))
+      send_msg(internal_error_response(request.id, e))
     end
   ensure
     untrack_request(request.id, cancel_token)
@@ -416,6 +441,18 @@ class Larimar::Server
       end
     end
 
+    write_json(json)
+  end
+
+  # Sends the message *json*, which isn't a `LSProtocol::Message`.
+  private def send_json(json : String) : Nil
+    Log.info &.emit("Sending message")
+    Log.debug &.emit(json)
+
+    write_json(json)
+  end
+
+  private def write_json(json : String) : Nil
     @output_lock.synchronize do
       # Written apart from its headers, not to copy it into a new string
       @output << "Content-Length: " << json.bytesize << "\r\n\r\n" << json
@@ -474,11 +511,29 @@ class Larimar::Server
   # results get parsed as the ones of the methods of these requests,
   # if known, or as a `LSProtocol::ResponseMessage` otherwise.
   #
-  # Raises `MessageError` for a message with an unknown method, or
-  # whose contents don't match the ones expected for its method.
+  # Raises `MessageError` for a message which isn't valid JSON-RPC, with
+  # an unknown method, or whose contents don't match the ones expected
+  # for its method.
   def parse_msg(content : String) : LSProtocol::Message
-    json = JSON.parse(content).as_h? || raise LSProtocol::ParseError.new("Expecting a JSON object")
-    id = json["id"]?.try { |value| value.as_i? || value.as_s? }
+    json =
+      begin
+        JSON.parse(content)
+      rescue e : JSON::ParseException
+        raise MessageError.new(nil, :parse_error, "Invalid JSON: #{e.message}")
+      end
+
+    unless (json = json.as_h?)
+      raise MessageError.new(nil, :invalid_request, "Expecting a JSON object, not #{content}")
+    end
+    unless json["jsonrpc"]?.try(&.as_s?) == "2.0"
+      raise MessageError.new(nil, :invalid_request, "Expecting JSON-RPC 2.0, not #{json["jsonrpc"]?.to_json}")
+    end
+
+    id : Int32 | String? = nil
+    if (value = json["id"]?) && !value.raw.nil?
+      id = value.as_i? || value.as_s? ||
+           raise MessageError.new(nil, :invalid_request, "Expecting a string or integer id, not #{value.to_json}")
+    end
 
     if (method = json["method"]?)
       unless (method_name = method.as_s?)
@@ -489,22 +544,44 @@ class Larimar::Server
         raise MessageError.new(id, :method_not_found, "Unknown method #{method_name}", method_name)
       end
 
-      begin
-        # Like `LSProtocol.parse_message` does, without parsing the JSON again
-        return types[0].from_json(content).as(LSProtocol::Message)
-      rescue e : JSON::ParseException
-        raise MessageError.new(id, :invalid_params, "Invalid #{method_name} message: #{e.message}", method_name)
+      message =
+        begin
+          # Like `LSProtocol.parse_message` does, without parsing the JSON again
+          types[0].from_json(content).as(LSProtocol::Message)
+        rescue e : JSON::ParseException
+          raise MessageError.new(id, :invalid_params, "Invalid #{method_name} message: #{e.message}", method_name)
+        end
+
+      # Not handled as a notification, as the client waits for an answer
+      if id && !message.is_a?(LSProtocol::Request)
+        raise MessageError.new(id, :invalid_request, "Expecting a notification #{method_name} message without an id", method_name)
       end
+
+      return message
     end
 
-    request_method = id.try { |key| @outgoing_methods_mutex.synchronize { @outgoing_methods.delete(key) } }
-
-    if json["error"]?.try(&.as_h?)
-      LSProtocol::ResponseErrorMessage.from_json(content)
-    elsif request_method && (types = LSProtocol::METHOD_TO_TYPES[request_method]?)
-      types[1].from_json(content).as(LSProtocol::Message)
-    else
-      LSProtocol::ResponseMessage.from_json(content)
+    unless json.has_key?("result") || json.has_key?("error")
+      raise MessageError.new(nil, :invalid_request, "Expecting a method, a result or an error")
     end
+
+    # Never answered, as it's a response
+    raise "Expecting the id of the request answered by #{content}" unless id
+
+    request_method = @outgoing_methods_mutex.synchronize { @outgoing_methods[id]? }
+
+    message =
+      if json["error"]?.try(&.as_h?)
+        LSProtocol::ResponseErrorMessage.from_json(content)
+      elsif request_method && (types = LSProtocol::METHOD_TO_TYPES[request_method]?)
+        types[1].from_json(content).as(LSProtocol::Message)
+      else
+        LSProtocol::ResponseMessage.from_json(content)
+      end
+
+    # Forgotten only once parsed, so that a valid response following
+    # a malformed one still gets parsed as the one of its method
+    @outgoing_methods_mutex.synchronize { @outgoing_methods.delete(id) } if request_method
+
+    message
   end
 end

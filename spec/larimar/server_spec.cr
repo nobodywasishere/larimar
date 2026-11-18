@@ -19,6 +19,33 @@ private class RaisingController < Larimar::Controller
   end
 end
 
+private class FailingInitController < Larimar::Controller
+  def on_init(init_params : LSProtocol::InitializeParams) : LSProtocol::InitializeResult
+    raise "Oops"
+  end
+end
+
+# Records the notifications and responses it handles.
+private class RecordingController < IdleController
+  getter handled = [] of LSProtocol::Message
+
+  def on_notification(message : LSProtocol::DidCloseTextDocumentNotification) : Nil
+    handled << message
+  end
+
+  def on_response(message : Larimar::ClientResponse) : Nil
+    handled << message
+  end
+end
+
+# Returns the JSON of the single message written to *output*.
+private def single_reply(output : IO::Memory) : JSON::Any
+  response = output.to_s
+  response.scan("Content-Length").size.should eq(1)
+
+  JSON.parse(response.partition("\r\n\r\n")[2])
+end
+
 private HOVER_REQUEST = %({"jsonrpc":"2.0","id":4,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///a.cr"},"position":{"line":0,"character":0}}})
 
 # Dispatches the request *json* to *controller*, returning the error answering it.
@@ -110,6 +137,19 @@ describe Larimar::Server do
         .should be_a(LSProtocol::ResponseMessage)
     end
 
+    it "keeps the method of a request until a response to it gets parsed" do
+      server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
+      server.send_msg(LSProtocol.parse_message(
+        %({"jsonrpc":"2.0","id":7,"method":"workspace/configuration","params":{"items":[]}})
+      ))
+
+      expect_raises(JSON::ParseException) do
+        server.parse_msg(%({"jsonrpc":"2.0","id":7,"result":123}))
+      end
+      server.parse_msg(%({"jsonrpc":"2.0","id":7,"result":[{"foo":1}]}))
+        .should be_a(LSProtocol::ConfigurationResponse)
+    end
+
     it "forgets the methods of the oldest requests not answered" do
       server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
 
@@ -150,6 +190,34 @@ describe Larimar::Server do
       end
     end
 
+    {
+      {"invalid JSON", %({), LSProtocol::ErrorCodes::ParseError},
+      {"a non-object", %([]), LSProtocol::ErrorCodes::InvalidRequest},
+      {"no JSON-RPC version", %({"id":3,"method":"shutdown"}), LSProtocol::ErrorCodes::InvalidRequest},
+      {"an invalid id", %({"jsonrpc":"2.0","id":1.5,"method":"shutdown"}), LSProtocol::ErrorCodes::InvalidRequest},
+      {"neither a method, a result nor an error", %({"jsonrpc":"2.0","id":17}), LSProtocol::ErrorCodes::InvalidRequest},
+    }.each do |name, json, code|
+      it "raises for a message with #{name}, without an id" do
+        server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
+
+        error = expect_raises(Larimar::Server::MessageError) do
+          server.parse_msg(json)
+        end
+        error.id.should be_nil
+        error.code.should eq(code)
+      end
+    end
+
+    it "raises for a notification with an id" do
+      server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
+
+      error = expect_raises(Larimar::Server::MessageError) do
+        server.parse_msg(%({"jsonrpc":"2.0","id":18,"method":"textDocument/didClose","params":{"textDocument":{"uri":"file:///a.cr"}}}))
+      end
+      error.id.should eq(18)
+      error.code.should eq(LSProtocol::ErrorCodes::InvalidRequest)
+    end
+
     it "raises for a notification with an unknown method, without an id" do
       server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
 
@@ -183,6 +251,46 @@ describe Larimar::Server do
       error = LSProtocol::ResponseErrorMessage.from_json(response.partition("\r\n\r\n")[2])
       error.id.should eq(5)
       error.error.try(&.code).should eq(LSProtocol::ErrorCodes::MethodNotFound.value)
+    end
+  end
+
+  describe "#server_loop" do
+    {
+      {"invalid JSON", %({), LSProtocol::ErrorCodes::ParseError},
+      {"no method, result nor error", %({"jsonrpc":"2.0","id":17}), LSProtocol::ErrorCodes::InvalidRequest},
+    }.each do |name, json, code|
+      it "answers a message with #{name} with an error with a null id, not handling it" do
+        output = IO::Memory.new
+        controller = RecordingController.new
+        Larimar::Server.new(IO::Memory.new(frame(json)), output).server_loop(controller)
+        Fiber.yield
+
+        reply = single_reply(output)
+        reply["id"].raw.should be_nil
+        reply["error"]["code"].should eq(code.value)
+        controller.handled.should be_empty
+      end
+    end
+
+    it "answers a notification with an id with an error, not handling it" do
+      output = IO::Memory.new
+      controller = RecordingController.new
+      json = %({"jsonrpc":"2.0","id":18,"method":"textDocument/didClose","params":{"textDocument":{"uri":"file:///a.cr"}}})
+      Larimar::Server.new(IO::Memory.new(frame(json)), output).server_loop(controller)
+      Fiber.yield
+
+      reply = single_reply(output)
+      reply["id"].should eq(18)
+      reply["error"]["code"].should eq(LSProtocol::ErrorCodes::InvalidRequest.value)
+      controller.handled.should be_empty
+    end
+
+    it "doesn't answer a response without an id" do
+      output = IO::Memory.new
+      json = %({"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"oops"}})
+      Larimar::Server.new(IO::Memory.new(frame(json)), output).server_loop(RecordingController.new)
+
+      output.empty?.should be_true
     end
   end
 
@@ -227,6 +335,18 @@ describe Larimar::Server do
       error = LSProtocol::ResponseErrorMessage.from_json(output.to_s.partition("\r\n\r\n")[2])
       error.id.should eq(5)
       error.error.try(&.code).should eq(LSProtocol::ErrorCodes::ServerNotInitialized.value)
+    end
+
+    it "answers an initialize request failing to be handled as an internal error" do
+      json = %({"jsonrpc":"2.0","id":19,"method":"initialize","params":{"capabilities":{}}})
+      output = IO::Memory.new
+
+      Larimar::Server.new(IO::Memory.new(frame(json)), output).handshake(FailingInitController.new).should be_false
+
+      reply = single_reply(output)
+      reply["id"].should eq(19)
+      reply["error"]["code"].should eq(LSProtocol::ErrorCodes::InternalError.value)
+      reply["error"]["message"].should eq("Oops")
     end
 
     it "answers an initialize request with invalid params as such" do
