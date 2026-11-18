@@ -40,8 +40,7 @@ class Larimar::Workspace
 
   getter name : String
   getter uri : URI
-  getter index : Int32?
 
-  def initialize(@name, @uri, @index = nil)
+  def initialize(@name, @uri)
   end
 end

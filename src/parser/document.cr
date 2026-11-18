@@ -7,7 +7,6 @@ class Larimar::Parser
     # Current character position within the document
     getter pos : Int32
     getter version : Int32
-    getter mutex : Mutex = Mutex.new
 
     property tokens : Array(Token) = Array(Token).new
     property lex_errors : Array(Lexer::LexerError) = Array(Lexer::LexerError).new

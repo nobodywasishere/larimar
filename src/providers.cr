@@ -104,7 +104,7 @@ module Larimar
   module CodeActionProvider
     abstract def provide_code_actions(
       document : Larimar::TextDocument,
-      range : LSProtocol::Range | LSProtocol::SelectionRange,
+      range : LSProtocol::Range,
       context : LSProtocol::CodeActionContext,
       token : CancellationToken?,
     ) : Array(LSProtocol::CodeAction | LSProtocol::Command)?
