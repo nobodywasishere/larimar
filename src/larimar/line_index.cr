@@ -4,11 +4,7 @@ struct Larimar::LineIndex
   @line_starts : Array(Int32)
 
   def initialize(@source : String, @encoding : LSProtocol::PositionEncodingKind)
-    @line_starts = [0]
-
-    @source.each_byte.with_index do |byte, index|
-      @line_starts << index + 1 if byte == '\n'.ord
-    end
+    @line_starts = TextDocument.line_starts(@source)
   end
 
   def position(point : TreeSitter::Point) : LSProtocol::Position
