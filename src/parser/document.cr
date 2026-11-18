@@ -84,12 +84,6 @@ class Larimar::Parser
       @chars.count('\n')
     end
 
-    # Returns the number of UTF-16 code units *char* takes, as LSP
-    # positions count them by default.
-    private def code_units(char : Char) : Int32
-      char.ord >= 0x10000 ? 2 : 1
-    end
-
     # Returns the index of the character at *position*, whose character
     # offset is expressed in UTF-16 code units.
     def position_to_index(position : LSProtocol::Position) : Int32
@@ -107,7 +101,7 @@ class Larimar::Parser
           line += 1
           colm = 0
         else
-          colm += code_units(char)
+          colm += TextDocument.code_units(char, :utf16)
         end
 
         posi += 1
@@ -140,7 +134,7 @@ class Larimar::Parser
           line += 1
           colm = 0
         else
-          colm += code_units(char)
+          colm += TextDocument.code_units(char, :utf16)
         end
 
         posi += 1
