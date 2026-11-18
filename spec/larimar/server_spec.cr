@@ -176,5 +176,16 @@ describe Larimar::Server do
       error.id.should eq(5)
       error.error.try(&.code).should eq(LSProtocol::ErrorCodes::ServerNotInitialized.value)
     end
+
+    it "answers an initialize request with invalid params as such" do
+      input = IO::Memory.new(frame(%({"jsonrpc":"2.0","id":0,"method":"initialize","params":{"processId":"x"}})))
+      output = IO::Memory.new
+
+      Larimar::Server.new(input, output).handshake(IdleController.new).should be_false
+
+      error = LSProtocol::ResponseErrorMessage.from_json(output.to_s.partition("\r\n\r\n")[2])
+      error.id.should eq(0)
+      error.error.try(&.code).should eq(LSProtocol::ErrorCodes::InvalidParams.value)
+    end
   end
 end

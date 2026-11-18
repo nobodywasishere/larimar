@@ -82,8 +82,9 @@ class Larimar::Server
     rescue IO::Error
       return false
     rescue e : MessageError
-      # Every request before the initialize one gets the same error
-      answer_with_error(e, code: :server_not_initialized)
+      # Every request before the initialize one gets the same error,
+      # while the initialize one gets its own
+      answer_with_error(e, code: e.method == "initialize" ? e.code : LSProtocol::ErrorCodes::ServerNotInitialized)
     rescue e
       Log.error(exception: e) { e }
     end
