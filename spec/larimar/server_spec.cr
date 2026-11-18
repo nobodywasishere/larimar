@@ -1,4 +1,5 @@
 require "../spec_helper"
+require "log/spec"
 
 private MESSAGE = %({"jsonrpc":"2.0","method":"textDocument/didClose","params":{"textDocument":{"uri":"file:///spec_subject.cr"}}})
 
@@ -145,6 +146,22 @@ describe Larimar::Server do
       error = LSProtocol::ResponseErrorMessage.from_json(response.partition("\r\n\r\n")[2])
       error.id.should eq(5)
       error.error.try(&.code).should eq(LSProtocol::ErrorCodes::MethodNotFound.value)
+    end
+  end
+
+  describe "#server_loop logging" do
+    it "logs the errors of the notifications which may be ignored as debug ones" do
+      input = IO::Memory.new(
+        frame(%({"jsonrpc":"2.0","method":"$/foo"})) +
+        frame(%({"jsonrpc":"2.0","method":"foo/bar"}))
+      )
+
+      Log.capture(level: :debug) do |logs|
+        Larimar::Server.new(input, IO::Memory.new).server_loop(IdleController.new)
+
+        logs.next(:debug, "Unknown method $/foo")
+        logs.next(:warn, "Unknown method foo/bar")
+      end
     end
   end
 

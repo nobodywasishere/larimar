@@ -14,8 +14,17 @@ class Larimar::Server
     getter id : Int32 | String | Nil
     getter code : LSProtocol::ErrorCodes
 
-    def initialize(@id, @code, message : String)
+    # The method of the message, if it's a string
+    getter method : String?
+
+    def initialize(@id, @code, message : String, @method = nil)
       super(message)
+    end
+
+    # Returns `true` if it's about a notification which may be ignored,
+    # i.e. one whose method starts with `$/`, as per the LSP specification.
+    def ignorable? : Bool
+      id.nil? && !!method.try(&.starts_with?("$/"))
     end
   end
 
@@ -199,7 +208,11 @@ class Larimar::Server
   # Answers the request *error* is about with it, if it's about one,
   # with the given error *code*.
   private def answer_with_error(error : MessageError, code : LSProtocol::ErrorCodes = error.code) : Nil
-    Log.warn { error.message }
+    if error.ignorable?
+      Log.debug { error.message }
+    else
+      Log.warn { error.message }
+    end
 
     return unless (id = error.id)
 
@@ -447,14 +460,14 @@ class Larimar::Server
       end
 
       unless (types = LSProtocol::METHOD_TO_TYPES[method_name]?)
-        raise MessageError.new(id, :method_not_found, "Unknown method #{method_name}")
+        raise MessageError.new(id, :method_not_found, "Unknown method #{method_name}", method_name)
       end
 
       begin
         # Like `LSProtocol.parse_message` does, without parsing the JSON again
         return types[0].from_json(content).as(LSProtocol::Message)
       rescue e : JSON::ParseException
-        raise MessageError.new(id, :invalid_params, "Invalid #{method_name} message: #{e.message}")
+        raise MessageError.new(id, :invalid_params, "Invalid #{method_name} message: #{e.message}", method_name)
       end
     end
 
