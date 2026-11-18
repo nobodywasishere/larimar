@@ -440,13 +440,14 @@ class Larimar::Server
       raise "Content-Length is nil"
     end
 
-    content_bytes = Bytes.new(content_length)
+    # Read right into the string, not to copy it from another buffer
+    content = String.new(content_length) do |buffer|
+      if @input.read_fully?(Slice.new(buffer, content_length)).nil?
+        raise IO::EOFError.new("Content-Length #{content_length} does not match actual length")
+      end
 
-    if @input.read_fully?(content_bytes).nil?
-      raise IO::EOFError.new("Content-Length #{content_length} does not match actual length")
+      {content_length, 0}
     end
-
-    content = String.new(content_bytes)
 
     message = parse_msg(content)
 

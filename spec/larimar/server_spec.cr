@@ -46,6 +46,17 @@ describe Larimar::Server do
       ).should be_a(LSProtocol::DidCloseTextDocumentNotification)
     end
 
+    it "reads a message with non-ASCII contents" do
+      json = %({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///a.cr","languageId":"crystal","version":1,"text":"aé😀"}}})
+      server = Larimar::Server.new(IO::Memory.new(frame(json) + frame(json)), IO::Memory.new)
+
+      2.times do
+        text = server.recv_msg.as(LSProtocol::DidOpenTextDocumentNotification).params.text_document.text
+        text.should eq("aé😀")
+        text.size.should eq(3)
+      end
+    end
+
     it "reads consecutive messages" do
       frame = "Content-Length: #{MESSAGE.bytesize}\r\n" \
               "Content-Type: application/vscode-jsonrpc; charset=utf-8\r\n" \
