@@ -135,10 +135,8 @@ class Larimar::ProviderController < Larimar::Controller
         case change
         when LSProtocol::TextDocumentContentChangeWholeDocument
           document.update_whole(change.text, version: params.text_document.version)
-          # Larimar::Parser::Lexer.lex_full(document)
         when LSProtocol::TextDocumentContentChangePartial
           document.update_partial(change.range, change.text, version: params.text_document.version)
-          # Larimar::Parser::Lexer.lex_partial(document, change.range, change.text.size)
         end
       end
 
