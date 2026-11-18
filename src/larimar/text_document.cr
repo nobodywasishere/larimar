@@ -190,10 +190,13 @@ class Larimar::TextDocument
 
   # Returns the byte offsets of the starts of the lines of *text*.
   def self.line_starts(text : String) : Array(Int32)
+    bytes = text.to_slice
     line_starts = [0]
+    offset = 0
 
-    text.each_byte.with_index do |byte, index|
-      line_starts << index + 1 if byte == '\n'.ord
+    # Looking for a byte in a byte slice uses `memchr`
+    while (index = bytes.index('\n'.ord.to_u8, offset))
+      line_starts << (offset = index + 1)
     end
 
     line_starts
