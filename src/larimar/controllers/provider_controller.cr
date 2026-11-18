@@ -107,15 +107,8 @@ class Larimar::ProviderController < Larimar::Controller
   end
 
   def on_notification(message : LSProtocol::DidCloseTextDocumentNotification) : Nil
-    params = message.params
-    document_uri = params.text_document.uri
-
-    return unless (document = document?(document_uri))
-
-    document.mutex.write do
-      next unless open?(document)
-
-      @documents_mutex.synchronize { @documents.delete(document_uri) }
+    writing_document(message.params.text_document.uri) do |document|
+      @documents_mutex.synchronize { @documents.delete(document.uri) }
 
       @providers.each do |provider|
         provider.on_close(document)
@@ -125,20 +118,15 @@ class Larimar::ProviderController < Larimar::Controller
 
   def on_notification(message : LSProtocol::DidChangeTextDocumentNotification) : Nil
     params = message.params
-    document_uri = params.text_document.uri
-    changes = params.content_changes
+    version = params.text_document.version
 
-    return unless (document = document?(document_uri))
-
-    document.mutex.write do
-      next unless open?(document)
-
-      changes.each do |change|
+    writing_document(params.text_document.uri) do |document|
+      params.content_changes.each do |change|
         case change
         when LSProtocol::TextDocumentContentChangeWholeDocument
-          document.update_whole(change.text, version: params.text_document.version)
+          document.update_whole(change.text, version: version)
         when LSProtocol::TextDocumentContentChangePartial
-          document.update_partial(change.range, change.text, version: params.text_document.version)
+          document.update_partial(change.range, change.text, version: version)
         end
       end
 
@@ -149,26 +137,24 @@ class Larimar::ProviderController < Larimar::Controller
   end
 
   def on_notification(message : LSProtocol::DidSaveTextDocumentNotification) : Nil
-    params = message.params
-    document_uri = params.text_document.uri
-
-    return unless (document = document?(document_uri))
-
-    document.mutex.write do
-      next unless open?(document)
-
+    writing_document(message.params.text_document.uri) do |document|
       @providers.each do |provider|
         provider.on_save(document)
       end
     end
   end
 
-  # Returns `true` unless *document* has been closed (or reopened as another document) since.
+  # Yields the open document with the given *uri* while holding its write
+  # lock, unless it has been closed (or reopened as another document) since.
   #
   # Each notification is handled in its own fiber, so a change might get handled
   # after the document has been closed, while waiting for its lock.
-  private def open?(document : TextDocument) : Bool
-    document?(document.uri).same?(document)
+  private def writing_document(uri : URI, &) : Nil
+    return unless (document = document?(uri))
+
+    document.mutex.write do
+      yield document if document?(uri).same?(document)
+    end
   end
 
   # Requests
