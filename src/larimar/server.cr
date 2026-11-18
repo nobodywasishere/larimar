@@ -3,6 +3,17 @@ class Larimar::Server
 
   DEFAULT_CONTENT_TYPE = "application/vscode-jsonrpc; charset=utf-8"
 
+  # Raised when a received message can't be handled, answering it
+  # with an error if it's a request, as identified by its *id*.
+  class MessageError < Exception
+    getter id : Int32 | String | Nil
+    getter code : LSProtocol::ErrorCodes
+
+    def initialize(@id, @code, message : String)
+      super(message)
+    end
+  end
+
   getter input : IO
   getter output : IO
   @output_lock = Mutex.new(:reentrant)
@@ -56,6 +67,8 @@ class Larimar::Server
       end
     rescue IO::Error
       return false
+    rescue e : MessageError
+      answer_with_error(e)
     rescue e
       Log.error(exception: e) { e }
     end
@@ -68,6 +81,9 @@ class Larimar::Server
         message = recv_msg
       rescue IO::Error
         return
+      rescue e : MessageError
+        answer_with_error(e)
+        next
       rescue e
         # A malformed message shouldn't take the whole server down
         Log.error(exception: e) { e }
@@ -172,6 +188,21 @@ class Larimar::Server
         handle_message(controller, message)
       end
     end
+  end
+
+  # Answers the request *error* is about with it, if it's about one.
+  private def answer_with_error(error : MessageError) : Nil
+    Log.warn { error.message }
+
+    return unless (id = error.id)
+
+    send_msg(LSProtocol::ResponseErrorMessage.new(
+      id: id,
+      error: LSProtocol::ResponseError.new(
+        code: error.code.value,
+        message: error.message || error.code.to_s
+      )
+    ))
   end
 
   # Drops the queues of the documents with no message left to handle,
@@ -397,15 +428,30 @@ class Larimar::Server
   # requests sent to the client, which come without a method: their
   # results get parsed as the ones of the methods of these requests,
   # if known, or as a `LSProtocol::ResponseMessage` otherwise.
+  #
+  # Raises `MessageError` for a message with an unknown method, or
+  # whose contents don't match the ones expected for its method.
   def parse_msg(content : String) : LSProtocol::Message
     json = JSON.parse(content).as_h? || raise LSProtocol::ParseError.new("Expecting a JSON object")
+    id = json["id"]?.try { |value| value.as_i? || value.as_s? }
 
     if (method = json["method"]?)
-      # Like `LSProtocol.parse_message` does, without parsing the JSON again
-      return LSProtocol::METHOD_TO_TYPES[method.as_s][0].from_json(content).as(LSProtocol::Message)
+      unless (method_name = method.as_s?)
+        raise MessageError.new(id, :invalid_request, "Expecting a string method, not #{method.to_json}")
+      end
+
+      unless (types = LSProtocol::METHOD_TO_TYPES[method_name]?)
+        raise MessageError.new(id, :method_not_found, "Unknown method #{method_name}")
+      end
+
+      begin
+        # Like `LSProtocol.parse_message` does, without parsing the JSON again
+        return types[0].from_json(content).as(LSProtocol::Message)
+      rescue e : JSON::ParseException
+        raise MessageError.new(id, :invalid_params, "Invalid #{method_name} message: #{e.message}")
+      end
     end
 
-    id = json["id"]?.try { |value| value.as_i? || value.as_s? }
     request_method = id.try { |key| @outgoing_methods_mutex.synchronize { @outgoing_methods.delete(key) } }
 
     if json["error"]?.try(&.as_h?)
