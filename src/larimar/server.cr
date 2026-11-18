@@ -204,8 +204,8 @@ class Larimar::Server
         end
       else
         drop_idle_document_queues
-        @document_queues.each_value do |queue|
-          queue.text_sync_done.try { |text_sync_done| wait_for << text_sync_done }
+        @document_queues.each_value do |document_queue|
+          document_queue.text_sync_done.try { |text_sync_done| wait_for << text_sync_done }
         end
 
         @others_done.reject!(&.closed?)

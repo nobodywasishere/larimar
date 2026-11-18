@@ -1556,7 +1556,7 @@ class Larimar::Parser
       when .op_semicolon?, .op_colon?
         # Skip
       when .op_amp?
-        # TODO: add error for mandatory parethesis
+        # TODO: add error for mandatory parenthesis
       when .symbol?
         # TODO: add error "a space is mandatory between ':' and return type"
       when .eof?
@@ -1747,7 +1747,7 @@ class Larimar::Parser
     else
       if external_name
         if external_name.kind.string?
-          add_error("expected paramater internal name")
+          add_error("expected parameter internal name")
           param_name = Token.new(:VT_MISSING)
         else
           param_name = external_name
