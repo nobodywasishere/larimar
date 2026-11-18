@@ -72,6 +72,21 @@ describe Larimar::Server do
         .should be_a(LSProtocol::ResponseMessage)
     end
 
+    it "forgets the methods of the oldest requests not answered" do
+      server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
+
+      (Larimar::Server::OUTGOING_METHODS_LIMIT + 1).times do |id|
+        server.send_msg(LSProtocol.parse_message(
+          %({"jsonrpc":"2.0","id":#{id},"method":"workspace/configuration","params":{"items":[]}})
+        ))
+      end
+
+      server.parse_msg(%({"jsonrpc":"2.0","id":0,"result":[]}))
+        .should be_a(LSProtocol::ResponseMessage)
+      server.parse_msg(%({"jsonrpc":"2.0","id":1,"result":[]}))
+        .should be_a(LSProtocol::ConfigurationResponse)
+    end
+
     it "parses a response to an unknown request" do
       server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
 

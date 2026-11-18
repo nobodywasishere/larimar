@@ -354,6 +354,10 @@ class Larimar::Server
 
   # Transmit methods
 
+  # How many requests sent to the client, but not answered yet,
+  # to remember the methods of, forgetting the oldest ones first
+  OUTGOING_METHODS_LIMIT = 1024
+
   # Methods of the requests sent to the client not answered yet, by their ids,
   # as the responses don't include them, but parsing them needs them
   @outgoing_methods = Hash(Int32 | String, String).new
@@ -370,6 +374,9 @@ class Larimar::Server
     if message.is_a?(LSProtocol::Request)
       @outgoing_methods_mutex.synchronize do
         @outgoing_methods[message.id] = message.method
+
+        # The client may never answer some, e.g. if they got cancelled
+        @outgoing_methods.shift if @outgoing_methods.size > OUTGOING_METHODS_LIMIT
       end
     end
 
