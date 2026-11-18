@@ -93,7 +93,7 @@ class Larimar::TextDocument
     units = 0
 
     while units < position.character && reader.pos < @text.bytesize && !reader.current_char.in?('\r', '\n')
-      units += self.class.code_units(reader.current_char, position_encoding)
+      units += position_encoding.code_units(reader.current_char)
       reader.next_char
     end
 
@@ -135,7 +135,7 @@ class Larimar::TextDocument
     units = 0
 
     while reader.pos < offset
-      units += self.class.code_units(reader.current_char, position_encoding)
+      units += position_encoding.code_units(reader.current_char)
       reader.next_char
     end
 
@@ -171,15 +171,6 @@ class Larimar::TextDocument
     end
 
     line_starts
-  end
-
-  # Returns the number of code units *char* takes in the given *encoding*.
-  def self.code_units(char : Char, encoding : LSProtocol::PositionEncodingKind) : Int32
-    case encoding
-    in .utf8?  then char.bytesize
-    in .utf16? then char.ord >= 0x10000 ? 2 : 1
-    in .utf32? then 1
-    end
   end
 
   @ameba_source : Ameba::Source?

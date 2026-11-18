@@ -101,7 +101,7 @@ class Larimar::Parser
           line += 1
           colm = 0
         else
-          colm += TextDocument.code_units(char, :utf16)
+          colm += LSProtocol::PositionEncodingKind::Utf16.code_units(char)
         end
 
         posi += 1
@@ -134,7 +134,7 @@ class Larimar::Parser
           line += 1
           colm = 0
         else
-          colm += TextDocument.code_units(char, :utf16)
+          colm += LSProtocol::PositionEncodingKind::Utf16.code_units(char)
         end
 
         posi += 1
