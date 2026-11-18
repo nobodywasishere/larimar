@@ -33,6 +33,20 @@ class Larimar::Server
     def ignorable? : Bool
       id.nil? && !!method.try { |method| Larimar.ignorable_notification?(method) }
     end
+
+    # Returns the response answering the request it's about with it, with
+    # the given error *code*, or `nil` if it's not about a request.
+    def response(code : LSProtocol::ErrorCodes = self.code) : LSProtocol::ResponseErrorMessage?
+      return unless (id = self.id)
+
+      LSProtocol::ResponseErrorMessage.new(
+        id: id,
+        error: LSProtocol::ResponseError.new(
+          code: code.value,
+          message: message || code.to_s
+        )
+      )
+    end
   end
 
   getter input : IO
@@ -222,15 +236,7 @@ class Larimar::Server
       Log.warn { error.message }
     end
 
-    return unless (id = error.id)
-
-    send_msg(LSProtocol::ResponseErrorMessage.new(
-      id: id,
-      error: LSProtocol::ResponseError.new(
-        code: code.value,
-        message: error.message || code.to_s
-      )
-    ))
+    error.response(code).try { |response| send_msg(response) }
   end
 
   # Drops the queues of the documents with no message left to handle,
