@@ -20,26 +20,22 @@ class Larimar::Parser
       @version = version
     end
 
+    # Returns the current character, or `'\0'` at the end of the document.
     def current_char : Char
-      if @chars.size == @pos
-        return '\0'
-      end
-
-      @chars[@pos]
+      @chars[@pos]? || '\0'
     end
 
+    # Moves to the next character, returning it, staying at the end of the
+    # document once reached.
     def next_char : Char
-      @pos += 1
+      @pos += 1 if @pos < @chars.size
 
       current_char
     end
 
+    # Returns the next character, or `'\0'` past the end of the document.
     def peek_next_char : Char
-      if @chars.size == @pos + 1
-        return '\0'
-      end
-
-      @chars[@pos + 1]
+      @chars[@pos + 1]? || '\0'
     end
 
     def update_partial(range : LSProtocol::Range, text : String, version : Int32 = 0) : Nil

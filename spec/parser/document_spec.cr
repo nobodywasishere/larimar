@@ -30,8 +30,12 @@ describe Larimar::Parser::Document do
     doc.current_char.should eq('d')
     doc.next_char
     doc.current_char.should eq('\0')
+    doc.peek_next_char.should eq('\0')
 
-    expect_raises(IndexError) { doc.next_char }
+    # Stays at the end of the document
+    doc.next_char.should eq('\0')
+    doc.pos.should eq(11)
+    doc.eof?.should be_true
   end
 
   it "can be updated with changes" do
