@@ -576,14 +576,19 @@ class Larimar::Server
 
     # Rejected before forgetting the method of the request, so that
     # a valid response following it still gets parsed as its one
-    if json.has_key?("result") && json.has_key?("error")
-      raise "Expecting either a result or an error, not both, in #{content}"
+    if (error = json["error"]?)
+      if json.has_key?("result")
+        raise "Expecting either a result or an error, not both, in #{content}"
+      end
+      unless error.as_h?
+        raise "Expecting an error object, not #{error.to_json}, in #{content}"
+      end
     end
 
     request_method = @outgoing_methods_mutex.synchronize { @outgoing_methods[id]? }
 
     message =
-      if json["error"]?.try(&.as_h?)
+      if error
         LSProtocol::ResponseErrorMessage.from_json(content)
       elsif request_method && (types = LSProtocol::METHOD_TO_TYPES[request_method]?)
         types[1].from_json(content).as(LSProtocol::Message)

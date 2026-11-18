@@ -163,6 +163,21 @@ describe Larimar::Server do
         .should be_a(LSProtocol::ConfigurationResponse)
     end
 
+    {"null", "\"malformed\"", "[]"}.each do |error|
+      it "rejects a response with a #{error} error, keeping the method of its request" do
+        server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
+        server.send_msg(LSProtocol.parse_message(
+          %({"jsonrpc":"2.0","id":7,"method":"workspace/configuration","params":{"items":[]}})
+        ))
+
+        expect_raises(Exception, /Expecting an error object/) do
+          server.parse_msg(%({"jsonrpc":"2.0","id":7,"error":#{error}}))
+        end
+        server.parse_msg(%({"jsonrpc":"2.0","id":7,"result":[{"foo":1}]}))
+          .should be_a(LSProtocol::ConfigurationResponse)
+      end
+    end
+
     it "forgets the methods of the oldest requests not answered" do
       server = Larimar::Server.new(IO::Memory.new, IO::Memory.new)
 
