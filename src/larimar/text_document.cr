@@ -149,10 +149,16 @@ class Larimar::TextDocument
 
   @ameba_source : Ameba::Source?
 
+  # Readers share the lock of the document, so building the source
+  # is serialized separately, to build it only once.
+  @ameba_source_mutex = Mutex.new
+
   def ameba_source : Ameba::Source
-    @ameba_source ||= Ameba::Source.new(
-      to_s,
-      uri.path
-    )
+    @ameba_source_mutex.synchronize do
+      @ameba_source ||= Ameba::Source.new(
+        to_s,
+        uri.path
+      )
+    end
   end
 end
