@@ -535,7 +535,9 @@ class Larimar::Server
 
       # Only a response may have a `null` id, answering a request which
       # couldn't be told apart, as per JSON-RPC
-      unless id || (value.raw.nil? && !json.has_key?("method"))
+      null_response_id = value.raw.nil? && !json.has_key?("method")
+
+      unless id || null_response_id
         raise MessageError.new(nil, :invalid_request, "Expecting a string or 32-bit integer id, not #{value.to_json}")
       end
     end
