@@ -9,6 +9,32 @@ private class IdleController < Larimar::Controller
   end
 end
 
+private class RaisingController < Larimar::Controller
+  def on_init(init_params : LSProtocol::InitializeParams) : LSProtocol::InitializeResult
+    LSProtocol::InitializeResult.new(LSProtocol::ServerCapabilities.new)
+  end
+
+  def on_request(message : LSProtocol::HoverRequest, cancel_token : CancellationToken) : LSProtocol::Message?
+    raise "Oops"
+  end
+end
+
+private HOVER_REQUEST = %({"jsonrpc":"2.0","id":4,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///a.cr"},"position":{"line":0,"character":0}}})
+
+# Dispatches the request *json* to *controller*, returning the error answering it.
+private def dispatch_error(controller, json) : LSProtocol::ResponseError?
+  output = IO::Memory.new
+  server = Larimar::Server.new(IO::Memory.new, output)
+  server.dispatch(controller, server.parse_msg(json))
+
+  100.times do
+    break unless output.empty?
+    sleep 10.milliseconds
+  end
+
+  LSProtocol::ResponseErrorMessage.from_json(output.to_s.partition("\r\n\r\n")[2]).error
+end
+
 private def frame(json : String) : String
   "Content-Length: #{json.bytesize}\r\n\r\n#{json}"
 end
@@ -212,6 +238,19 @@ describe Larimar::Server do
       error = LSProtocol::ResponseErrorMessage.from_json(output.to_s.partition("\r\n\r\n")[2])
       error.id.should eq(0)
       error.error.try(&.code).should eq(LSProtocol::ErrorCodes::InvalidParams.value)
+    end
+  end
+
+  describe "#dispatch" do
+    it "answers a request no handler handles as an unknown method" do
+      dispatch_error(IdleController.new, HOVER_REQUEST).try(&.code)
+        .should eq(LSProtocol::ErrorCodes::MethodNotFound.value)
+    end
+
+    it "answers a request whose handler raises as an internal error" do
+      error = dispatch_error(RaisingController.new, HOVER_REQUEST)
+      error.try(&.code).should eq(LSProtocol::ErrorCodes::InternalError.value)
+      error.try(&.message).should eq("Oops")
     end
   end
 end

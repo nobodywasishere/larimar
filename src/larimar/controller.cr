@@ -12,12 +12,17 @@ abstract class Larimar::Controller
 
   # Handles the request *message*, returning the response to it, if any.
   #
-  # Returning `nil` answers the request with a `null` result.
+  # Returning `nil` answers the request with a `null` result, while
+  # raising answers it with an error, a `MethodNotFound` one for the
+  # unhandled requests.
   #
   # The *cancel_token* gets cancelled once the client cancels the request.
   def on_request(message : LSProtocol::Request, cancel_token : CancellationToken) : LSProtocol::Message?
-    Log.error { "Unhandled request message #{message.class.to_s.split("::").last}" }
-    nil
+    raise Server::MessageError.new(
+      message.id, :method_not_found,
+      "Unhandled request message #{message.class.to_s.split("::").last}",
+      message.method
+    )
   end
 
   # Notifications

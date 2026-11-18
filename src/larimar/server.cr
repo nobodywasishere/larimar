@@ -350,13 +350,23 @@ class Larimar::Server
 
     send_msg(response)
   rescue e
-    # Gave up as the request got cancelled
     if e.is_a?(CancellationException) && cancel_token.cancelled?
+      # Gave up as the request got cancelled
       send_msg(request_cancelled_response(request.id))
+    elsif e.is_a?(MessageError)
+      answer_with_error(e)
     else
       Log.error(exception: e) { "Error: #{e}\n#{e.backtrace.join("\n")}" }
 
-      send_msg(LSProtocol::ResponseMessage.new(id: request.id, result: nil))
+      # Not answered with a `null` result, which the client couldn't tell
+      # apart from the request having no result
+      send_msg(LSProtocol::ResponseErrorMessage.new(
+        id: request.id,
+        error: LSProtocol::ResponseError.new(
+          code: LSProtocol::ErrorCodes::InternalError.value,
+          message: e.message || e.class.name
+        )
+      ))
     end
   ensure
     untrack_request(request.id, cancel_token)
