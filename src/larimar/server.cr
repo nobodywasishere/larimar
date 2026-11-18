@@ -17,7 +17,7 @@ class Larimar::Server
   # Raised when a received message can't be handled, answering it
   # with an error if it's a request, as identified by its *id*.
   class MessageError < Exception
-    getter id : Int32 | String | Nil
+    getter id : Int32 | String?
     getter code : LSProtocol::ErrorCodes
 
     # The method of the message, if it's a string
