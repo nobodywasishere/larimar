@@ -113,6 +113,8 @@ class Larimar::ProviderController < Larimar::Controller
     return unless (document = document?(document_uri))
 
     document.mutex.write do
+      next unless open?(document)
+
       @documents_mutex.synchronize { @documents.delete(document_uri) }
 
       @providers.each do |provider|
