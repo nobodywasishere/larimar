@@ -1,23 +1,4 @@
 class Larimar::Parser
-  record(
-    SemanticToken,
-    line : Int32,
-    char : Int32,
-    size : Int32,
-    type : LSProtocol::SemanticTokenTypes,
-    mods : LSProtocol::SemanticTokenModifiers = :none
-  ) do
-    def to_a : Array(UInt32)
-      [
-        @line.to_u32,
-        @char.to_u32,
-        @size.to_u32,
-        @type.value.to_u32,
-        @mods.value.to_u32,
-      ]
-    end
-  end
-
   class Document
     Log = ::Larimar::Log.for(self)
 
@@ -26,42 +7,35 @@ class Larimar::Parser
     # Current character position within the document
     getter pos : Int32
     getter version : Int32
-    getter mutex : Mutex = Mutex.new
 
     property tokens : Array(Token) = Array(Token).new
-    property semantic_tokens : Array(SemanticToken) = Array(SemanticToken).new
     property lex_errors : Array(Lexer::LexerError) = Array(Lexer::LexerError).new
     property diagnostics : Array(LSProtocol::Diagnostic) = Array(LSProtocol::Diagnostic).new
     property ast : AST::Node = AST::Nop.new
     property parse_errors : Array(ParserError) = Array(ParserError).new
 
     def initialize(document : String, version : Int32 = 0)
-      # lsp uses utf-16 by default
-      @chars = document.to_utf16.map(&.unsafe_chr).to_a
+      @chars = document.chars
       @pos = 0
       @version = version
     end
 
+    # Returns the current character, or `'\0'` at the end of the document.
     def current_char : Char
-      if @chars.size == @pos
-        return '\0'
-      end
-
-      @chars[@pos]
+      @chars[@pos]? || '\0'
     end
 
+    # Moves to the next character, returning it, staying at the end of the
+    # document once reached.
     def next_char : Char
-      @pos += 1
+      @pos += 1 if @pos < @chars.size
 
       current_char
     end
 
+    # Returns the next character, or `'\0'` past the end of the document.
     def peek_next_char : Char
-      if @chars.size == @pos + 1
-        return '\0'
-      end
-
-      @chars[@pos + 1]
+      @chars[@pos + 1]? || '\0'
     end
 
     def update_partial(range : LSProtocol::Range, text : String, version : Int32 = 0) : Nil
@@ -74,7 +48,7 @@ class Larimar::Parser
     end
 
     def update_whole(text : String, version : Int32 = 0)
-      @chars = text.to_utf16.map(&.unsafe_chr).to_a
+      @chars = text.chars
       @pos = 0
       @version = version
     end
@@ -106,6 +80,8 @@ class Larimar::Parser
       @chars.count('\n')
     end
 
+    # Returns the index of the character at *position*, whose character
+    # offset is expressed in UTF-16 code units.
     def position_to_index(position : LSProtocol::Position) : Int32
       line = 0
       colm = 0
@@ -121,7 +97,7 @@ class Larimar::Parser
           line += 1
           colm = 0
         else
-          colm += 1
+          colm += LSProtocol::PositionEncodingKind::Utf16.code_units(char)
         end
 
         posi += 1
@@ -134,6 +110,8 @@ class Larimar::Parser
       raise IndexError.new("#{position.line},#{position.character} not in document")
     end
 
+    # Returns the position of the character at *index*, with its character
+    # offset expressed in UTF-16 code units.
     def index_to_position(index : Int32) : LSProtocol::Position
       line = 0
       colm = 0
@@ -152,7 +130,7 @@ class Larimar::Parser
           line += 1
           colm = 0
         else
-          colm += 1
+          colm += LSProtocol::PositionEncodingKind::Utf16.code_units(char)
         end
 
         posi += 1

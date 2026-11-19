@@ -30,8 +30,12 @@ describe Larimar::Parser::Document do
     doc.current_char.should eq('d')
     doc.next_char
     doc.current_char.should eq('\0')
+    doc.peek_next_char.should eq('\0')
 
-    expect_raises(IndexError) { doc.next_char }
+    # Stays at the end of the document
+    doc.next_char.should eq('\0')
+    doc.pos.should eq(11)
+    doc.eof?.should be_true
   end
 
   it "can be updated with changes" do
@@ -75,5 +79,22 @@ describe Larimar::Parser::Document do
       hello there
       general kenobi!
       EDIT
+  end
+
+  it "keeps characters outside the BMP intact" do
+    doc = Larimar::Parser::Document.new("a😀b")
+
+    doc.size.should eq(3)
+    doc.to_s.should eq("a😀b")
+
+    # "😀" takes 2 UTF-16 code units
+    range = LSProtocol::Range.new(
+      start: LSProtocol::Position.new(line: 0, character: 3),
+      end: LSProtocol::Position.new(line: 0, character: 4)
+    )
+    doc.update_partial(range, "🙂")
+
+    doc.to_s.should eq("a😀🙂")
+    doc.index_to_position(3).character.should eq(5)
   end
 end

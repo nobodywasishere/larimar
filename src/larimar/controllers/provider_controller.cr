@@ -107,13 +107,8 @@ class Larimar::ProviderController < Larimar::Controller
   end
 
   def on_notification(message : LSProtocol::DidCloseTextDocumentNotification) : Nil
-    params = message.params
-    document_uri = params.text_document.uri
-
-    return unless (document = document?(document_uri))
-
-    document.mutex.write do
-      @documents_mutex.synchronize { @documents.delete(document_uri) }
+    writing_document(message.params.text_document.uri) do |document|
+      @documents_mutex.synchronize { @documents.delete(document.uri) }
 
       @providers.each do |provider|
         provider.on_close(document)
@@ -123,22 +118,15 @@ class Larimar::ProviderController < Larimar::Controller
 
   def on_notification(message : LSProtocol::DidChangeTextDocumentNotification) : Nil
     params = message.params
-    document_uri = params.text_document.uri
-    changes = params.content_changes
+    version = params.text_document.version
 
-    return unless (document = document?(document_uri))
-
-    document.mutex.write do
-      next unless open?(document)
-
-      changes.each do |change|
+    writing_document(params.text_document.uri) do |document|
+      params.content_changes.each do |change|
         case change
         when LSProtocol::TextDocumentContentChangeWholeDocument
-          document.update_whole(change.text, version: params.text_document.version)
-          # Larimar::Parser::Lexer.lex_full(document)
+          document.update_whole(change.text, version: version)
         when LSProtocol::TextDocumentContentChangePartial
-          document.update_partial(change.range, change.text, version: params.text_document.version)
-          # Larimar::Parser::Lexer.lex_partial(document, change.range, change.text.size)
+          document.update_partial(change.range, change.text, version: version)
         end
       end
 
@@ -149,311 +137,227 @@ class Larimar::ProviderController < Larimar::Controller
   end
 
   def on_notification(message : LSProtocol::DidSaveTextDocumentNotification) : Nil
-    params = message.params
-    document_uri = params.text_document.uri
-
-    return unless (document = document?(document_uri))
-
-    document.mutex.write do
-      next unless open?(document)
-
+    writing_document(message.params.text_document.uri) do |document|
       @providers.each do |provider|
         provider.on_save(document)
       end
     end
   end
 
-  # Returns `true` unless *document* has been closed (or reopened as another document) since.
+  # Yields the open document with the given *uri* while holding its write
+  # lock, unless it has been closed (or reopened as another document) since.
   #
   # Each notification is handled in its own fiber, so a change might get handled
   # after the document has been closed, while waiting for its lock.
-  private def open?(document : TextDocument) : Bool
-    document?(document.uri).same?(document)
+  private def writing_document(uri : URI, &) : Nil
+    return unless (document = document?(uri))
+
+    document.mutex.write do
+      yield document if document?(uri).same?(document)
+    end
   end
 
   # Requests
 
   def on_request(message : LSProtocol::DocumentSymbolRequest, cancel_token : CancellationToken)
-    params = message.params
-    document_uri = params.text_document.uri
-    symbols = [] of LSProtocol::DocumentSymbol
-
-    return unless (document = document?(document_uri))
-
-    document.mutex.read do
-      @providers.each do |provider|
-        if provider.is_a?(DocumentSymbolProvider)
-          if (result = provider.provide_document_symbols(document, cancel_token))
-            symbols.concat result
-          end
-        end
+    reading_document(message.params.text_document.uri) do |document|
+      symbols = collect(DocumentSymbolProvider, [] of LSProtocol::DocumentSymbol) do |provider|
+        provider.provide_document_symbols(document, cancel_token)
       end
-    end
 
-    LSProtocol::DocumentSymbolResponse.new(
-      id: message.id,
-      result: symbols
-    )
+      LSProtocol::DocumentSymbolResponse.new(id: message.id, result: symbols)
+    end
   end
 
   def on_request(message : LSProtocol::CompletionRequest, cancel_token : CancellationToken)
     params = message.params
-    document_uri = params.text_document.uri
-    position = params.position
-    completion_items = [] of LSProtocol::CompletionItem
 
-    return unless (document = document?(document_uri))
-
-    document.mutex.read do
-      @providers.each do |provider|
-        if provider.is_a?(CompletionItemProvider)
-          if (result = provider.provide_completion_items(document, position, cancel_token))
-            completion_items.concat result
-          end
-        end
+    reading_document(params.text_document.uri) do |document|
+      completion_items = collect(CompletionItemProvider, [] of LSProtocol::CompletionItem) do |provider|
+        provider.provide_completion_items(document, params.position, cancel_token)
       end
-    end
 
-    LSProtocol::CompletionResponse.new(
-      id: message.id,
-      result: completion_items
-    )
+      LSProtocol::CompletionResponse.new(id: message.id, result: completion_items)
+    end
   end
 
   def on_request(message : LSProtocol::DefinitionRequest, cancel_token : CancellationToken)
     params = message.params
-    document_uri = params.text_document.uri
-    position = params.position
-    definition : LSProtocol::DefinitionResult = nil
 
-    return unless (document = document?(document_uri))
-
-    document.mutex.read do
-      @providers.each do |provider|
-        if provider.is_a?(DefinitionProvider)
-          if (result = provider.provide_definition(document, position, cancel_token))
-            definition = result
-            break
-          end
-        end
+    reading_document(params.text_document.uri) do |document|
+      definition = first(DefinitionProvider) do |provider|
+        provider.provide_definition(document, params.position, cancel_token)
       end
-    end
 
-    LSProtocol::DefinitionResponse.new(
-      id: message.id,
-      result: definition
-    )
+      LSProtocol::DefinitionResponse.new(id: message.id, result: definition)
+    end
   end
 
   def on_request(message : LSProtocol::FoldingRangeRequest, cancel_token : CancellationToken)
-    params = message.params
-    document_uri = params.text_document.uri
-    folding_ranges = Array(LSProtocol::FoldingRange).new
-
-    return unless (document = document?(document_uri))
-
-    document.mutex.read do
-      @providers.each do |provider|
-        if provider.is_a?(FoldingRangeProvider)
-          if (result = provider.provide_folding_ranges(document, cancel_token))
-            folding_ranges.concat result
-          end
-        end
+    reading_document(message.params.text_document.uri) do |document|
+      folding_ranges = collect(FoldingRangeProvider, [] of LSProtocol::FoldingRange) do |provider|
+        provider.provide_folding_ranges(document, cancel_token)
       end
-    end
 
-    LSProtocol::FoldingRangeResponse.new(
-      id: message.id,
-      result: folding_ranges
-    )
+      LSProtocol::FoldingRangeResponse.new(id: message.id, result: folding_ranges)
+    end
   end
 
   def on_request(message : LSProtocol::CodeActionRequest, cancel_token : CancellationToken)
     params = message.params
-    document_uri = params.text_document.uri
-    range = params.range
-    context = params.context
 
-    code_actions = Array(LSProtocol::CodeAction | LSProtocol::Command).new
-
-    return unless (document = document?(document_uri))
-
-    document.mutex.read do
-      @providers.each do |provider|
-        if provider.is_a?(CodeActionProvider)
-          if (result = provider.provide_code_actions(document, range, context, cancel_token))
-            code_actions.concat result
-          end
-        end
+    reading_document(params.text_document.uri) do |document|
+      code_actions = collect(CodeActionProvider, [] of LSProtocol::CodeAction | LSProtocol::Command) do |provider|
+        provider.provide_code_actions(document, params.range, params.context, cancel_token)
       end
-    end
 
-    LSProtocol::CodeActionResponse.new(
-      id: message.id,
-      result: code_actions
-    )
+      LSProtocol::CodeActionResponse.new(id: message.id, result: code_actions)
+    end
   end
 
   def on_request(message : LSProtocol::CodeActionResolveRequest, cancel_token : CancellationToken)
-    params = message.params
-    code_action = nil
-
-    @providers.each do |provider|
-      if provider.is_a?(CodeActionProvider)
-        if (code_action = provider.resolve_code_action(params, cancel_token))
-          break
-        end
-      end
+    code_action = first(CodeActionProvider) do |provider|
+      provider.resolve_code_action(message.params, cancel_token)
     end
 
+    # One no provider resolves is left as is
     LSProtocol::CodeActionResolveResponse.new(
       id: message.id,
-      result: code_action || LSProtocol::CodeAction.new("Could not resolve code action.")
+      result: code_action || message.params
     )
   end
 
   def on_request(message : LSProtocol::HoverRequest, cancel_token : CancellationToken)
     params = message.params
-    document_uri = params.text_document.uri
-    position = params.position
-    hover : LSProtocol::Hover? = nil
 
-    return unless (document = document?(document_uri))
-
-    document.mutex.read do
-      @providers.each do |provider|
-        if provider.is_a?(HoverProvider)
-          if (result = provider.provide_hover(document, position, cancel_token))
-            hover = result
-            break
-          end
-        end
+    reading_document(params.text_document.uri) do |document|
+      hover = first(HoverProvider) do |provider|
+        provider.provide_hover(document, params.position, cancel_token)
       end
-    end
 
-    if hover
-      LSProtocol::HoverResponse.new(
-        id: message.id,
-        result: hover
-      )
+      LSProtocol::HoverResponse.new(id: message.id, result: hover) if hover
     end
   end
 
   def on_request(message : LSProtocol::InlayHintRequest, cancel_token : CancellationToken)
     params = message.params
-    document_uri = params.text_document.uri
-    range = params.range
-    inlay_hints = Array(LSProtocol::InlayHint).new
 
-    return unless (document = document?(document_uri))
-
-    document.mutex.read do
-      @providers.each do |provider|
-        if provider.is_a?(InlayHintProvider)
-          if (result = provider.provide_inlay_hints(document, range, cancel_token))
-            inlay_hints.concat result
-          end
-        end
+    reading_document(params.text_document.uri) do |document|
+      inlay_hints = collect(InlayHintProvider, [] of LSProtocol::InlayHint) do |provider|
+        provider.provide_inlay_hints(document, params.range, cancel_token)
       end
-    end
 
-    LSProtocol::InlayHintResponse.new(
-      id: message.id,
-      result: inlay_hints
-    )
+      LSProtocol::InlayHintResponse.new(id: message.id, result: inlay_hints)
+    end
   end
 
   def on_request(message : LSProtocol::DocumentFormattingRequest, cancel_token : CancellationToken)
     params = message.params
-    document_uri = params.text_document.uri
-    options = params.options
-    edits = Array(LSProtocol::TextEdit).new
 
-    return unless (document = document?(document_uri))
-
-    document.mutex.read do
-      @providers.each do |provider|
-        if provider.is_a?(FormattingProvider)
-          if (result = provider.provide_document_formatting_edits(document, options, cancel_token))
-            edits = result
-            break
-          end
-        end
+    reading_document(params.text_document.uri) do |document|
+      edits = first(FormattingProvider) do |provider|
+        provider.provide_document_formatting_edits(document, params.options, cancel_token)
       end
-    end
 
-    LSProtocol::DocumentFormattingResponse.new(
-      id: message.id,
-      result: edits
-    )
+      LSProtocol::DocumentFormattingResponse.new(
+        id: message.id,
+        result: edits || [] of LSProtocol::TextEdit
+      )
+    end
   end
 
   def on_request(message : LSProtocol::SemanticTokensRequest, cancel_token : CancellationToken)
-    params = message.params
-    document_uri = params.text_document.uri
-    tokens = Array(SemanticToken).new
-
-    return unless (document = document?(document_uri))
-
-    document.mutex.read do
-      @providers.each do |provider|
-        if provider.is_a?(SemanticTokensProvider)
-          if (result = provider.provide_semantic_tokens(document, cancel_token))
-            tokens.concat result
-          end
-        end
+    reading_document(message.params.text_document.uri) do |document|
+      tokens = collect(SemanticTokensProvider, [] of SemanticToken) do |provider|
+        provider.provide_semantic_tokens(document, cancel_token)
       end
-    end
 
-    LSProtocol::SemanticTokensResponse.new(
-      id: message.id,
-      result: LSProtocol::SemanticTokens.new(
-        data: tokens.flat_map(&.to_a)
+      LSProtocol::SemanticTokensResponse.new(
+        id: message.id,
+        result: LSProtocol::SemanticTokens.new(data: tokens.flat_map(&.to_a))
       )
-    )
+    end
   end
 
   def on_request(message : LSProtocol::SemanticTokensRangeRequest, cancel_token : CancellationToken)
     params = message.params
-    range = params.range
-    document_uri = params.text_document.uri
-    tokens = Array(SemanticToken).new
 
-    return unless (document = document?(document_uri))
+    partial_result_token = params.partial_result_token
 
-    document.mutex.read do
-      @providers.each do |provider|
-        if provider.is_a?(SemanticTokensRangeProvider)
-          result = provider.provide_semantic_tokens_range(document, range, cancel_token) do |partial_tokens|
-            if (partial_result_token = params.partial_result_token)
-              server.send_msg(
-                LSProtocol::ProgressNotification.new(
-                  params: LSProtocol::ProgressParams.new(
-                    token: partial_result_token,
-                    value: JSON.parse(
-                      LSProtocol::SemanticTokens.new(
-                        data: partial_tokens.flat_map(&.to_a)
-                      ).to_json
-                    )
-                  )
-                )
-              )
-            end
-          end
+    reading_document(params.text_document.uri) do |document|
+      # The tokens not reported as partial results
+      data = [] of UInt32
 
-          if result
-            tokens.concat result
-            break
-          end
+      remaining_tokens = first(SemanticTokensRangeProvider) do |provider|
+        provider.provide_semantic_tokens_range(document, params.range, cancel_token) do |tokens|
+          report_semantic_tokens(tokens, partial_result_token, data)
         end
+      end
+
+      # The tokens returned follow the ones yielded
+      remaining_tokens.try { |tokens| report_semantic_tokens(tokens, partial_result_token, data) }
+
+      # Once reported as partial results, the final result is empty, as per LSP
+      LSProtocol::SemanticTokensRangeResponse.new(
+        id: message.id,
+        result: LSProtocol::SemanticTokens.new(data: data)
+      )
+    end
+  end
+
+  # Reports the semantic *tokens* as a partial result if the client asked
+  # for them with a *partial_result_token*, appending them to *data* otherwise.
+  private def report_semantic_tokens(tokens : Array(SemanticToken), partial_result_token : LSProtocol::ProgressToken?, data : Array(UInt32)) : Nil
+    unless partial_result_token
+      data.concat(tokens.flat_map(&.to_a))
+      return
+    end
+
+    return if tokens.empty?
+
+    server.send_msg(
+      LSProtocol::ProgressNotification.new(
+        params: LSProtocol::ProgressParams.new(
+          token: partial_result_token,
+          value: JSON.parse(
+            LSProtocol::SemanticTokens.new(data: tokens.flat_map(&.to_a)).to_json
+          )
+        )
+      )
+    )
+  end
+
+  # Yields the open document with the given *uri* while holding its read
+  # lock, returning the value of the block, or `nil` if there's no such document.
+  private def reading_document(uri : URI, &)
+    return unless (document = document?(uri))
+
+    document.mutex.read { yield document }
+  end
+
+  # Concatenates into *results* the ones of every provider implementing
+  # *type*, as returned by the block.
+  private def collect(type : T.class, results : Array, &) forall T
+    @providers.each do |provider|
+      next unless (typed_provider = provider.as?(T))
+
+      if (result = yield typed_provider)
+        results.concat(result)
       end
     end
 
-    LSProtocol::SemanticTokensRangeResponse.new(
-      id: message.id,
-      result: LSProtocol::SemanticTokens.new(
-        data: tokens.flat_map(&.to_a)
-      )
-    )
+    results
+  end
+
+  # Returns the first result of a provider implementing *type*,
+  # as returned by the block, or `nil` if there's none.
+  private def first(type : T.class, &) forall T
+    @providers.each do |provider|
+      next unless (typed_provider = provider.as?(T))
+
+      if (result = yield typed_provider)
+        return result
+      end
+    end
   end
 end

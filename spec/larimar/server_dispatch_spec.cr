@@ -395,7 +395,7 @@ describe Larimar::Server do
       controller.messages.should be_empty
     end
 
-    it "doesn't answer a request raising `CancellationException` uncancelled with `RequestCancelled`" do
+    it "answers a request raising `CancellationException` uncancelled as an internal error" do
       controller = RecordingController.new
       controller.raise_cancellation = true
       server = new_server
@@ -404,7 +404,7 @@ describe Larimar::Server do
 
       wait_until { server.output.to_s.includes?(%("id":1)) }
       server.output.to_s.should_not contain(%("code":-32800))
-      server.output.to_s.should contain(%("result":null))
+      server.output.to_s.should contain(%("code":-32603))
     end
 
     it "keeps a reused request ID cancellable after the old flush completes" do

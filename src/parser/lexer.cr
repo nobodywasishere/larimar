@@ -28,58 +28,6 @@ class Larimar::Parser
       document.lex_errors = lexer.errors
     end
 
-    def self.lex_partial(document : Document, range : LSProtocol::Range, edit_size : Int32) : Nil
-      lexer = new(document)
-      tokens = document.tokens
-
-      # find start index of first overlapping token
-      change_start_idx = document.position_to_index(range.start)
-
-      char_start_idx = 0
-      token_start_idx = 0
-      doc_idx = 0
-
-      # find end index of last overlapping token
-      tokens.each_with_index do |token, token_idx|
-        if doc_idx < change_start_idx
-          char_start_idx = doc_idx
-          token_start_idx = token_idx
-        end
-
-        doc_idx += token.length
-      end
-
-      # remove any relevant errors
-      # document.lex_errors.reject! { |e| char_start_idx <= e.pos && e.pos <= char_end_idx }
-
-      # seek document to the start index
-      document.seek_to(char_start_idx)
-      new_tokens = Array(Token).new
-
-      doc_idx = char_start_idx
-      doc_token_idx = doc_idx
-
-      token_end_idx = 0
-
-      loop do
-        new_tokens << (token = lexer.next_token)
-
-        if token.kind.eof? || document.eof?
-          token_end_idx = tokens.size
-          break
-        end
-
-        doc_idx += token.length
-
-        # if (char_start_idx + edit_size) > doc_idx
-
-        # end
-      end
-
-      tokens[token_start_idx...token_end_idx] = new_tokens
-      document.tokens = tokens
-    end
-
     record(LexerError, message : String, pos : Int32)
 
     getter reader : Document

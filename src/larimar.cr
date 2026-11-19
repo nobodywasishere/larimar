@@ -8,6 +8,7 @@ require "sync/rw_lock"
 
 require "./cancellation_token"
 
+require "./ext/position_encoding_kind"
 require "./ext/visitor"
 
 require "./parser/document"
@@ -23,22 +24,16 @@ require "./semantic/semantic_visitor"
 
 require "./larimar/log"
 require "./larimar/text_document"
-require "./larimar/line_index"
 require "./larimar/workspace"
 # require "./larimar/compiler"
 require "./larimar/server"
 require "./larimar/controller"
-# require "./larimar/controllers/crystal_controller"
-# require "./larimar/controllers/parser_controller"
 require "./larimar/controllers/provider_controller"
 
 require "./providers"
 require "./providers/*"
 
 require "./tree_sitter_converter"
-
-# require "./larimar/analysis/document_symbols_visitor"
-# require "./larimar/analysis/semantic_tokens_visitor"
 
 module Larimar
   VERSION = "0.1.0"

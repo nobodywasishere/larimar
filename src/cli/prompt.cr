@@ -3,7 +3,14 @@ require "json"
 
 loop do
   STDOUT.print "larimar> "
-  document = Larimar::Parser::Document.new(STDIN.gets(chomp: false) || "")
+
+  # Exits once the input gets closed, e.g. with Ctrl-D
+  unless (line = STDIN.gets(chomp: false))
+    STDOUT.puts
+    break
+  end
+
+  document = Larimar::Parser::Document.new(line)
 
   Larimar::Parser.parse_full(document)
 

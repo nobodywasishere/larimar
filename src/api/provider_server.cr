@@ -5,6 +5,7 @@ require "lsprotocol"
 require "sync/rw_lock"
 
 require "../cancellation_token"
+require "../ext/position_encoding_kind"
 require "../ext/visitor"
 
 require "../larimar/log"
